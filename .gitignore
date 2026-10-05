@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+data/uploads/
+.env
+.env.local
+.env.production
+*.log
+.DS_Store
+.vercel
+data/files/
