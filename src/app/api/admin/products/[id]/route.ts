@@ -3,10 +3,10 @@ import { adminUser, audit, jsonError } from "@/lib/adminApi";
 import { q, q1, run, insert, tx } from "@/lib/db";
 import { productSchema } from "@/lib/adminProducts";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    adminUser();
-    const p = q1<any>("SELECT * FROM products WHERE id = ?", params.id);
+    await adminUser();
+    const p = q1<any>("SELECT * FROM products WHERE id = ?", (await params).id);
     if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
     p.images = q("SELECT id, url, alt, role FROM product_images WHERE product_id = ? ORDER BY position", p.id);
     p.variants = q("SELECT id, sku, name, options_json, price_delta_cents, stock_qty FROM product_variants WHERE product_id = ?", p.id);
@@ -18,10 +18,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   }
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const admin = adminUser();
-    const id = parseInt(params.id, 10);
+    const admin = await adminUser();
+    const id = parseInt((await params).id, 10);
     const before = q1<any>("SELECT price_cents, stock_qty, status, sku, name FROM products WHERE id = ?", id);
     if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -94,14 +94,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const admin = adminUser();
-    const p = q1<any>("SELECT slug, name, status FROM products WHERE id = ?", params.id);
+    const admin = await adminUser();
+    const p = q1<any>("SELECT slug, name, status FROM products WHERE id = ?", (await params).id);
     if (!p) return NextResponse.json({ error: "Not found" }, { status: 404 });
     // Archive instead of hard delete by default (protects order history).
-    run("UPDATE products SET status = 'archived', updated_at = datetime('now') WHERE id = ?", params.id);
-    audit(admin.id, "product_archived", "product", Number(params.id), { status: p.status }, { status: "archived" });
+    run("UPDATE products SET status = 'archived', updated_at = datetime('now') WHERE id = ?", (await params).id);
+    audit(admin.id, "product_archived", "product", Number((await params).id), { status: p.status }, { status: "archived" });
     return NextResponse.json({ ok: true, archived: true });
   } catch (e: any) {
     const { error, status } = jsonError(e);

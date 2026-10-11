@@ -4,7 +4,7 @@ import FaqAccordion from "@/components/ui/FaqAccordion";
 
 export const metadata: Metadata = {
   title: "FAQ",
-  description: "Answers to common questions about FEMZYK MARKET — orders, payments, shipping, returns, digital products and web development services.",
+  description: "Read the support and shopping answers currently published by FEMZYK MARKET.",
 };
 
 export default function FaqPage() {

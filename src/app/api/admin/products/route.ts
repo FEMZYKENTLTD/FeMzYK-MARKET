@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
-    const admin = adminUser();
+    const admin = await adminUser();
     const data = productSchema.parse(await req.json());
     const id = tx(() => createProduct(data, admin.id));
     audit(admin.id, "product_created", "product", id, undefined, { name: data.name, sku: data.sku });
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 /** List for admin with filters. */
 export async function GET(req: NextRequest) {
   try {
-    adminUser();
+    await adminUser();
     const q = req.nextUrl.searchParams.get("q") || "";
     const status = req.nextUrl.searchParams.get("status") || "";
     const page = Math.max(1, parseInt(req.nextUrl.searchParams.get("page") || "1", 10));

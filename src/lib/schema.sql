@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS products (
   sku TEXT NOT NULL UNIQUE,
   slug TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
-  brand TEXT DEFAULT 'FEMZYK',
+  brand TEXT,
   short_description TEXT,
   description TEXT,
   price_cents INTEGER NOT NULL,
@@ -271,6 +271,9 @@ CREATE TABLE IF NOT EXISTS orders (
   est_delivery_max_days INTEGER,
   customer_note TEXT,
   ip TEXT,
+  cart_id INTEGER REFERENCES carts(id) ON DELETE SET NULL,
+  cart_restored INTEGER NOT NULL DEFAULT 0,
+  confirmation_token TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   paid_at TEXT,
@@ -519,6 +522,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   subject TEXT NOT NULL,
   body TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','pending','resolved','closed')),
+  assigned_to TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

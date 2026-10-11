@@ -46,7 +46,7 @@ export class PaystackProvider implements PaymentProvider {
     const d = json?.data;
     if (!res.ok || json.status !== true || !d) return { status: "FAILED" };
     return {
-      status: d.status === "success" ? "SUCCESS" : "FAILED",
+      status: d.status === "success" ? "SUCCESS" : ["pending", "ongoing", "processing", "queued"].includes(String(d.status).toLowerCase()) ? "PENDING" : "FAILED",
       providerRef: String(d.reference ?? ""),
       amountCents: d.amount,
       currency: d.currency,

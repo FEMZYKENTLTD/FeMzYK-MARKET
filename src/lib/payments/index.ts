@@ -42,10 +42,23 @@ import { FlutterwaveProvider } from "./flutterwave";
 import { PaystackProvider } from "./paystack";
 
 export function getPaymentProvider(): PaymentProvider {
-  const code = (process.env.PAYMENT_PROVIDER || "mock").toLowerCase();
-  if (code === "flutterwave" && process.env.FLUTTERWAVE_SECRET_KEY) return new FlutterwaveProvider();
-  if (code === "paystack" && process.env.PAYSTACK_SECRET_KEY) return new PaystackProvider();
-  return new MockProvider();
+  const configured = process.env.PAYMENT_PROVIDER?.trim().toLowerCase();
+  const code = configured || (process.env.NODE_ENV === "production" ? "" : "mock");
+
+  // Never silently downgrade a live deployment to a simulated payment gateway.
+  if (process.env.NODE_ENV === "production" && (!code || code === "mock")) {
+    throw new Error("A live payment provider must be configured before checkout can be enabled.");
+  }
+  if (code === "mock") return new MockProvider();
+  if (code === "flutterwave") {
+    if (!process.env.FLUTTERWAVE_SECRET_KEY) throw new Error("Flutterwave is selected but its server secret is not configured.");
+    return new FlutterwaveProvider();
+  }
+  if (code === "paystack") {
+    if (!process.env.PAYSTACK_SECRET_KEY) throw new Error("Paystack is selected but its server secret is not configured.");
+    return new PaystackProvider();
+  }
+  throw new Error("Unsupported payment provider. Choose flutterwave or paystack.");
 }
 
 export function providerLabel(code: string): string {

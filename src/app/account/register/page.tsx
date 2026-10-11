@@ -5,8 +5,8 @@ import AuthForms from "../AuthForms";
 
 export const metadata: Metadata = { title: "Create account" };
 
-export default function RegisterPage({ searchParams }: { searchParams: { next?: string } }) {
-  const user = getSessionUser();
+export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const user = await getSessionUser();
   if (user) redirect("/account");
   return (
     <div className="container-page py-14 max-w-md mx-auto">
@@ -15,7 +15,7 @@ export default function RegisterPage({ searchParams }: { searchParams: { next?: 
         <h1 className="font-display text-3xl text-cream-50 mt-2">Create your account</h1>
         <p className="text-sm text-mist-400 mt-2">Track orders, access digital purchases and manage projects in one place.</p>
       </div>
-      <AuthForms mode="register" next={searchParams.next} />
+      <AuthForms mode="register" next={(await searchParams).next} />
     </div>
   );
 }

@@ -14,14 +14,31 @@ function daysAgo(n: number): string {
   return new Date(Date.now() - n * 864e5).toISOString().replace("T", " ").slice(0, 19);
 }
 
+export function ensureInitialAdmin(db: DatabaseSync) {
+  const existing = db.prepare("SELECT id FROM users WHERE role = 'ADMIN' LIMIT 1").get();
+  if (existing) return;
+
+  const production = process.env.NODE_ENV === "production";
+  const email = production ? process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase() : "admin@femzykmarket.com";
+  const password = production ? process.env.INITIAL_ADMIN_PASSWORD : "Femzyk!Admin2026";
+  if (!email || !password) {
+    console.warn("[admin] No administrator was seeded. Set INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD before launch.");
+    return;
+  }
+  if (production && (password.length < 20 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    throw new Error("Production initial admin needs a valid email and a password of at least 20 characters.");
+  }
+  db.prepare("INSERT OR IGNORE INTO users (email, password_hash, first_name, last_name, role, email_verified) VALUES (?, ?, ?, ?, 'ADMIN', 1)")
+    .run(email, hashPassword(password), "FEMZYK", "Admin");
+}
+
 export function runSeed(db: DatabaseSync) {
   const ins = (sql: string) => db.prepare(sql);
   const t = now();
 
-  // ── Admin & demo accounts ────────────────────────────────────────────────
-  ins(
-    "INSERT OR IGNORE INTO users (email, password_hash, first_name, last_name, role, email_verified) VALUES (?, ?, ?, ?, 'ADMIN', 1)"
-  ).run("admin@femzykmarket.com", hashPassword("Femzyk!Admin2026"), "FEMZYK", "Admin");
+  // A fixed demo login exists in development only. Production requires a
+  // secret supplied through environment configuration.
+  ensureInitialAdmin(db);
 
   // ── Product types ────────────────────────────────────────────────────────
   const types = [
@@ -39,8 +56,10 @@ export function runSeed(db: DatabaseSync) {
   // ── Categories ───────────────────────────────────────────────────────────
   const cat = (slug: string, name: string, desc: string, image: string, parentSlug?: string, pos = 0) => {
     const parent = parentSlug ? (db.prepare("SELECT id FROM categories WHERE slug = ?").get(parentSlug) as any)?.id ?? null : null;
-    ins("INSERT OR IGNORE INTO categories (parent_id, slug, name, description, image, position) VALUES (?, ?, ?, ?, ?, ?)").run(
-      parent, slug, name, desc, image, pos
+    const production = process.env.NODE_ENV === "production";
+    const publicImage = production ? null : image;
+    ins("INSERT OR IGNORE INTO categories (parent_id, slug, name, description, image, position, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)").run(
+      parent, slug, name, desc, publicImage, pos, production ? 0 : 1
     );
   };
   cat("home", "Home", "Thoughtful products for a calmer, more organized home.", "/images/cat-home.jpg", undefined, 1);
@@ -103,10 +122,10 @@ export function runSeed(db: DatabaseSync) {
 
   // ── Suppliers (marketplace-ready architecture) ──────────────────────────
   const sup = ins("INSERT INTO suppliers (name, contact_email, country, lead_time_days, notes) VALUES (?, ?, ?, ?, ?)");
-  sup.run("Northwind Home Goods", "orders@northwind.example", "US", 3, "Home and kitchen products. Ships from US warehouse.");
-  sup.run("Companion Pet Supply Co.", "supply@companionpet.example", "CA", 4, "Pet accessories and grooming.");
-  sup.run("Studio Ceramics Collective", "hello@studiocc.example", "GB", 6, "Ceramic drinkware, small-batch.");
-  sup.run("FEMZYK Digital Studio", "studio@femzykmarket.com", "—", 0, "In-house digital products and services. Instant delivery.");
+  sup.run("DEMO — Home & Kitchen Supplier", "replace-before-launch@example.invalid", "US", 3, "DEMO RECORD: fictional supplier details for development only. Verify the real supplier, contact and lead time before fulfillment.");
+  sup.run("DEMO — Pet Products Supplier", "replace-before-launch@example.invalid", "CA", 4, "DEMO RECORD: fictional supplier details for development only. Verify the real supplier, contact and lead time before fulfillment.");
+  sup.run("DEMO — Ceramics Supplier", "replace-before-launch@example.invalid", "GB", 6, "DEMO RECORD: fictional supplier details for development only. Verify the real supplier, contact and lead time before fulfillment.");
+  sup.run("FEMZYK Digital Studio (Sample)", "replace-before-launch@example.invalid", "—", 0, "SAMPLE RECORD: replace with FEMZYK's verified internal contact before use.");
 
   const suppliers = db.prepare("SELECT id, name FROM suppliers").all() as any[];
   const supId = (name: string) => suppliers.find((s) => s.name === name)?.id ?? null;
@@ -136,7 +155,7 @@ export function runSeed(db: DatabaseSync) {
     is_featured: 0, is_bestseller: 0, is_new: 1,
     warranty_text: "12-month limited warranty against manufacturing defects.",
     return_eligible: 1,
-    return_notes: "30-day returns in original condition. Digital products are non-returnable; see Digital Product Policy.",
+    return_notes: "Return eligibility is product-specific. See the Returns Policy for current time limits, conditions and instructions.",
     digital_file_type: null, digital_file_size: null, digital_version: null,
     digital_download_limit: null, digital_expiry_days: null,
     service_quote_type: null, service_delivery_min_days: null, service_delivery_max_days: null,
@@ -153,9 +172,9 @@ export function runSeed(db: DatabaseSync) {
       name: "FEMZYK LUMORA Candle Warmer Lamp",
       short_description: "A flameless way to enjoy your favorite candles — warm light, full fragrance, zero open flame.",
       description: `LUMORA melts your candle from the top down using an adjustable warm lamp, so you get the fragrance and glow without an open flame, soot or tunneling.\n\nThe dimmable bulb lets you control warmth and brightness, and the adjustable arm fits most jar candles up to 3.5 inches tall. It's a calmer way to enjoy candles in bedrooms, offices and small spaces.`,
-      price_cents: 5999, compare_at_cents: 7499,
+      price_cents: 5999, compare_at_cents: null,
       stock_qty: 46, weight_grams: 1400,
-      is_featured: 1, is_bestseller: 1, publish_at: daysAgo(24), created_at: daysAgo(24),
+      is_featured: 1, is_bestseller: 0, publish_at: daysAgo(24), created_at: daysAgo(24),
       specs_json: JSON.stringify([
         ["Material", "Powder-coated steel, glass shade"],
         ["Power", "110–240V, 35W warm bulb (included)"],
@@ -253,7 +272,7 @@ export function runSeed(db: DatabaseSync) {
       name: "FEMZYK NeatSpace Organization Set",
       short_description: "A modular 6-piece storage system for shelves, drawers and counters.",
       description: `NeatSpace is a set of six modular bins and dividers that adapt to your space instead of forcing your space to adapt to them.\n\nThe matte finish and neutral tone keep shelves looking calm, while the stackable design means the system grows with you. Use them in the kitchen, bathroom, office or entryway — they're built to be moved and reused.`,
-      price_cents: 5999, compare_at_cents: 6999, stock_qty: 33, weight_grams: 1800,
+      price_cents: 5999, compare_at_cents: null, stock_qty: 33, weight_grams: 1800,
       is_featured: 1, publish_at: daysAgo(16), created_at: daysAgo(16),
       specs_json: JSON.stringify([
         ["Pieces", "6 (3 bins, 3 adjustable dividers)"],
@@ -317,7 +336,7 @@ export function runSeed(db: DatabaseSync) {
       short_description: "Five desk essentials in one box — everything a focused workspace needs.",
       description: `The Creator Desk Kit bundles the five pieces we think every focused desk deserves: a weighted cable organizer, a monitor-height phone stand, a catch-all tray, a felt desk mat and a set of reusable cable ties.\n\nEverything is finished in matte charcoal so it disappears into your setup — until you notice how much tidier your desk looks.`,
       price_cents: 5499, stock_qty: 41, weight_grams: 1100,
-      is_featured: 1, is_bestseller: 1, publish_at: daysAgo(26), created_at: daysAgo(26),
+      is_featured: 1, is_bestseller: 0, publish_at: daysAgo(26), created_at: daysAgo(26),
       specs_json: JSON.stringify([
         ["Pieces", "5"],
         ["Desk mat", "31.5 × 15.7 in, 3 mm felt"],
@@ -444,9 +463,9 @@ export function runSeed(db: DatabaseSync) {
       name: "FEMZYK Business Creator Template Bundle",
       short_description: "Twelve ready-to-use business templates: proposals, invoices, launch checklists and a content planner.",
       description: `The Business Creator Bundle gives small-business owners and freelancers the documents they need on day one — professionally structured, easy to edit, and formatted for US, Canadian, UK and international use.\n\nIncludes 12 templates: proposal, invoice, quote, service agreement outline, project brief, content calendar, launch checklist, pricing worksheet, client onboarding checklist, social post planner, expense tracker and a simple one-page business plan.\n\nInstant download after purchase. Free updates when templates improve.`,
-      price_cents: 3999, compare_at_cents: 4999,
+      price_cents: 3999, compare_at_cents: null,
       track_inventory: 0, stock_qty: 0, requires_shipping: 0, weight_grams: null,
-      is_featured: 1, is_bestseller: 1, publish_at: daysAgo(15), created_at: daysAgo(15),
+      is_featured: 1, is_bestseller: 0, publish_at: daysAgo(15), created_at: daysAgo(15),
       warranty_text: null, return_eligible: 0,
       return_notes: "Digital product — see our Digital Product Policy. Support is available if your files don't work.",
       digital_file_type: "PDF + editable formats", digital_file_size: "≈ 24 MB", digital_version: "2.3",
@@ -672,7 +691,12 @@ export function runSeed(db: DatabaseSync) {
     },
   ];
 
-  for (const p of products) {
+  // Keep illustrative seed products out of the public production catalog until an operator
+  // has reviewed and published real product facts, prices, images, stock, and service terms.
+  const initialProducts = process.env.NODE_ENV === "production"
+    ? products.map((p) => ({ ...p, status: "draft", is_featured: 0, is_bestseller: 0, is_new: 0 }))
+    : products;
+  for (const p of initialProducts) {
     P.run(p);
   }
 
@@ -743,15 +767,15 @@ export function runSeed(db: DatabaseSync) {
 
   // ── Collections ──────────────────────────────────────────────────────────
   const col = ins("INSERT INTO collections (slug, name, description, rule_json, position) VALUES (?, ?, ?, ?, ?)");
-  col.run("bestsellers", "Bestsellers", "Our most-purchased products, ranked by real sales.", JSON.stringify({ sort: "bestselling", limit: 8 }), 1);
+  col.run("bestsellers", "Bestsellers", "Products ranked by verified sales when available.", JSON.stringify({ sort: "bestselling", limit: 8 }), 1);
   col.run("new-arrivals", "New Arrivals", "Recently published products.", JSON.stringify({ sort: "new", limit: 8 }), 2);
-  col.run("under-35", "Under $35", "Great products that keep things affordable.", JSON.stringify({ maxPrice: 35, limit: 8 }), 3);
-  col.run("home-favorites", "Home Favorites", "Pieces our customers choose for calmer homes.", "[]", 4);
-  col.run("workspace-picks", "Workspace Picks", "Made for focused desks.", "[]", 5);
-  col.run("pet-essentials", "Pet Essentials", "Care, travel and comfort for pets.", "[]", 6);
-  col.run("digital-starter-kit", "Digital Starter Kit", "Guides and templates to start building today.", JSON.stringify({ type: "DIGITAL_PRODUCT", limit: 8 }), 7);
-  col.run("web-creator-collection", "Web Creator Collection", "Resources and services for people building on the web.", "[]", 8);
-  col.run("femzyk-picks", "FEMZYK Picks", "Featured products from across the store.", JSON.stringify({ sort: "featured", limit: 8 }), 9);
+  col.run("under-35", "Under $35", "Currently published products priced below $35.", JSON.stringify({ maxPrice: 35, limit: 8 }), 3);
+  col.run("home-favorites", "Home Favorites", "Published home and household listings.", "[]", 4);
+  col.run("workspace-picks", "Workspace Picks", "Published desk and workspace listings.", "[]", 5);
+  col.run("pet-essentials", "Pet Essentials", "Published pet-related listings.", "[]", 6);
+  col.run("digital-starter-kit", "Digital Starter Kit", "Published digital guides and templates.", JSON.stringify({ type: "DIGITAL_PRODUCT", limit: 8 }), 7);
+  col.run("web-creator-collection", "Web Creator Collection", "Published resources and services for web work.", "[]", 8);
+  col.run("femzyk-picks", "FEMZYK Picks", "Products featured by the store.", JSON.stringify({ sort: "featured", limit: 8 }), 9);
   const cpick = ins("INSERT INTO collection_products (collection_id, product_id, position) VALUES (?, ?, ?)");
   const colId = (slug: string) => (db.prepare("SELECT id FROM collections WHERE slug = ?").get(slug) as any)?.id;
   ["femzyk-lumora-candle-warmer", "femzyk-neatspace-organization-set", "femzyk-slow-morning-ceramic-set", "femzyk-createbox-diy-craft-kit"].forEach((s, i) => cpick.run(colId("home-favorites"), prodId(s), i));
@@ -766,29 +790,34 @@ export function runSeed(db: DatabaseSync) {
   z.run("GB", "United Kingdom", JSON.stringify(["GB"]));
   z.run("INTL", "International", JSON.stringify(["*"]));
   const zoneId = (code: string) => (db.prepare("SELECT id FROM shipping_zones WHERE code = ?").get(code) as any)?.id;
-  const sm = ins("INSERT INTO shipping_methods (zone_id, name, price_cents, free_threshold_cents, min_days, max_days) VALUES (?, ?, ?, ?, ?, ?)");
-  sm.run(zoneId("US"), "Standard Shipping", 499, 7500, 3, 7);
-  sm.run(zoneId("CA"), "Standard Shipping", 999, 10000, 7, 14);
-  sm.run(zoneId("GB"), "Standard Shipping", 899, 9000, 6, 12);
-  sm.run(zoneId("INTL"), "International Shipping", 1499, null, 10, 21);
+  // Example rate rows are disabled until FEMZYK confirms real carrier prices and delivery ranges.
+  const sm = ins("INSERT INTO shipping_methods (zone_id, name, price_cents, free_threshold_cents, min_days, max_days, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  sm.run(zoneId("US"), "Standard Shipping (verify before enabling)", 499, 7500, 3, 7, 0);
+  sm.run(zoneId("CA"), "Standard Shipping (verify before enabling)", 999, 10000, 7, 14, 0);
+  sm.run(zoneId("GB"), "Standard Shipping (verify before enabling)", 899, 9000, 6, 12, 0);
+  sm.run(zoneId("INTL"), "International Shipping (verify before enabling)", 1499, null, 10, 21, 0);
 
-  // ── Coupons ──────────────────────────────────────────────────────────────
-  const cpn = ins("INSERT INTO coupons (code, type, value_cents, min_subtotal_cents, usage_limit, starts_at, ends_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
-  cpn.run("WELCOME10", "percent", 1000, 0, 500, t, null);
-  cpn.run("LAUNCH15", "percent", 1500, 5000, 200, t, null);
+  // Launch discounts are intentionally not seeded. Configure only genuine promotions in Admin → Discounts.
 
   // ── FAQ ──────────────────────────────────────────────────────────────────
   const faq = ins("INSERT INTO faq_items (category, question, answer, position) VALUES (?, ?, ?, ?)");
-  const faqs: [string, string, string][] = [
+  const faqs: [string, string, string][] = process.env.NODE_ENV === "production" ? [
+    ["Support", "How do I contact support?", "Submit a support ticket through the Help Center. Keep the reference shown after submission and check the same ticket page for replies. Email notifications are queued but are not sent."],
+    ["Orders & Checkout", "Do I need an account to place an order?", "Guest checkout is supported when an item is available and secure payment is configured."],
+    ["Payment", "How is payment handled?", "Checkout opens a configured payment provider, and payment is confirmed on the server. Checkout remains unavailable when a live provider is not configured."],
+    ["Digital Products", "How are digital files delivered?", "Digital products are available only after the business uploads an active file. Eligible purchases use a private download link."],
+    ["Physical Products", "How is shipping priced?", "A physical item can be checked out only where an active shipping method is configured. The available option and cost appear before payment; no estimate is shown if a method is not configured."],
+    ["Web Development", "What services are available?", "Service packages are listed only when the business publishes them. Review each listing's scope and terms before purchase."],
+  ] : [
     ["Orders & Payment", "Which payment methods do you accept?", "We accept major debit and credit cards through our payment processors (currently operating in test mode — live card processing activates when our payment provider keys are connected). Your card details are handled by the payment provider's secure checkout, never stored on our servers."],
     ["Orders & Payment", "Is checkout secure?", "Yes. Payments are processed by PCI-compliant providers, payment results are verified server-side, and we never store card numbers."],
     ["Orders & Payment", "Can I check out without an account?", "Yes — guest checkout is fully supported. You can create an account after purchase if you want order history and downloads in one place."],
-    ["Shipping & Delivery", "Where do you ship?", "We ship to the United States, Canada, the United Kingdom and internationally. Delivery estimates are shown at checkout based on your country."],
-    ["Shipping & Delivery", "How fast is delivery?", "Estimates depend on your location — typically 3–7 business days in the US, 6–14 days to Canada and the UK, and 10–21 days internationally. We show a realistic range at checkout and in your order confirmation."],
+    ["Shipping & Delivery", "Where do you ship?", "Physical orders are accepted only for destinations with an active shipping method. Choose your country at checkout to see availability, cost and the current estimated range."],
+    ["Shipping & Delivery", "How fast is delivery?", "The estimated delivery range for the active shipping method is shown before payment. Estimates are not guarantees and may vary by carrier and destination."],
     ["Shipping & Delivery", "Can I track my order?", "Yes. Use the Track Order page with your order number and email, or sign in to your account to see live order status."],
     ["Returns", "What is your return policy?", "Physical products can be returned within 30 days in original condition for a refund. Return eligibility is shown on every product page. Digital products are non-returnable once downloaded — see the Digital Product Policy."],
-    ["Digital Products", "How do I receive digital products?", "Immediately after payment you'll get a secure download link by email and in your account under Downloads. Downloads are private and limited to your purchase."],
-    ["Digital Products", "What if a digital product is updated?", "Purchases include free updates. We'll notify you when a new version is available."],
+    ["Digital Products", "How do I receive digital products?", "After payment is verified, your private download link appears on the order confirmation page and in the account library when signed in. Guest customers can also use Track Order with their order number and checkout email."],
+    ["Digital Products", "What if a digital product is updated?", "If your entitlement is active, the current version is available through your private download link. Update notifications are queued; email delivery is not connected yet."],
     ["Web Development Services", "How do web development services work?", "Choose a package, pay securely, then submit your requirements through your project dashboard. Our team designs, builds and launches with structured review rounds. You can track status the whole way."],
     ["Web Development Services", "What if I need something custom?", "Contact us with your requirements and we'll prepare a scoped quote. Nothing starts until you approve the scope and price."],
   ];
@@ -796,32 +825,30 @@ export function runSeed(db: DatabaseSync) {
 
   // ── Content pages (admin-editable legal & info pages) ───────────────────
   const page = ins("INSERT OR IGNORE INTO content_pages (slug, title, body_md) VALUES (?, ?, ?)");
-  page.run("shipping", "Shipping Policy",
-`## Where we ship
+  const runContentPage = (slug: string, title: string, body: string) => page["run"](
+    slug,
+    title,
+    process.env.NODE_ENV === "production"
+      ? `## ${title} is being prepared\n\nThis information has not been reviewed or approved by the business yet. Do not rely on this page for legal, delivery, refund, pricing, or service terms. For questions, submit a support ticket through the Help Center.`
+      : body
+  );
+  runContentPage("shipping", "Shipping Policy",
+`## Supported destinations
 
-We ship physical products to the United States, Canada, the United Kingdom and most international destinations. Digital products and services are delivered online, worldwide.
+Physical delivery is available only for destinations that have an active shipping method in checkout. FEMZYK MARKET does not accept a physical order when no delivery option is configured for the selected country.
 
-## Shipping rates & estimates
+## Rates and delivery estimates
 
-Shipping costs are calculated at checkout based on your delivery country. Current estimates:
+Before you pay, checkout shows the shipping method, cost and estimated delivery range that apply to your destination. The amount shown in the final order review is the amount charged for the order. Estimates are not guarantees; carrier schedules and customs processing can change transit times.
 
-| Destination | Method | Cost | Estimated delivery |
-|---|---|---|---|
-| United States | Standard | $4.99 — free over $75 | 3–7 business days |
-| Canada | Standard | $9.99 — free over $100 | 7–14 business days |
-| United Kingdom | Standard | $8.99 — free over $90 | 6–12 business days |
-| International | Standard | $14.99 | 10–21 business days |
+## Tracking
 
-These are realistic estimates based on our carriers' typical performance, not guarantees. If your delivery is running late, contact us with your order number and we'll investigate.
+When a tracking number is added to an order, it is available through Track Order or the customer account. Email notifications are queued but are not sent until a delivery provider is connected.
 
-## Processing time
+## Duties and taxes
 
-Orders are typically processed within 1–2 business days. You'll receive a confirmation email when your order ships, with tracking where available.
-
-## Duties & taxes
-
-For international orders, local customs duties or taxes may apply. These are set by your country and are the recipient's responsibility.`);
-  page.run("returns", "Returns & Refunds Policy",
+Applicable taxes are calculated from the configured destination rates and shown before payment. Customs duties or import fees imposed by a destination country are not included unless checkout explicitly says otherwise; check local requirements before ordering.`);
+  runContentPage("returns", "Returns & Refunds Policy",
 `## 30-day returns on physical products
 
 If you're not satisfied with a physical product, you can return it within 30 days of delivery in its original condition for a refund of the product price.
@@ -845,7 +872,7 @@ Digital products are non-returnable once downloaded, because they can't be "give
 ## Services
 
 Web development services follow the Service Terms. Work already performed is billed for; unstarted work is fully refundable.`);
-  page.run("privacy", "Privacy Policy",
+  runContentPage("privacy", "Privacy Policy",
 `## What we collect
 
 When you shop with us we collect only what's needed to serve you: your name, email, delivery address (for physical orders), order history, and account details if you create an account.
@@ -876,7 +903,7 @@ We use essential cookies for your cart and session, and optional first-party ana
 ## Contact
 
 Questions about privacy? Email support and we'll answer plainly.`);
-  page.run("terms", "Terms of Service",
+  runContentPage("terms", "Terms of Service",
 `## 1. The basics
 
 These terms govern your use of FEMZYK MARKET, operated by FEMZYK ENTERPRISES. By placing an order you agree to these terms.
@@ -912,7 +939,7 @@ We may update these terms; material changes will be announced on the website. Co
 ## 9. Contact
 
 Questions about these terms? Contact support.`);
-  page.run("cookies", "Cookie Policy",
+  runContentPage("cookies", "Cookie Policy",
 `## What cookies we use
 
 **Essential cookies** — required for the site to work: your shopping cart, your session when signed in, and your display currency. You can't opt out of these.
@@ -926,10 +953,10 @@ Questions about these terms? Contact support.`);
 - No dark patterns around consent
 
 You can clear cookies in your browser at any time; your cart will be reset.`);
-  page.run("digital-products", "Digital Product Policy",
+  runContentPage("digital-products", "Digital Product Policy",
 `## Delivery
 
-Digital products are delivered instantly after payment is verified. You'll receive a secure download link by email and in your account under **Downloads**.
+After payment is verified, a secure download link is available on the order confirmation page and in the account Downloads area when signed in. Guest customers can use the order number and checkout email on Track Order. Email delivery is not connected yet.
 
 ## Download limits
 
@@ -937,7 +964,7 @@ Each purchase includes a generous number of downloads (shown on the product page
 
 ## Updates
 
-When a digital product you own is updated, you get the new version free and we'll notify you.
+If your entitlement is active, the latest active version is available through your private download link. Update notices are queued in the email outbox; they are not delivered until an email provider is connected.
 
 ## Compatibility
 
@@ -946,7 +973,7 @@ File formats are listed on each product page. If a file doesn't open or is corru
 ## Refunds on digital products
 
 Because digital files can't be returned, digital products are non-refundable once downloaded — but if the product is materially not as described or technically unusable, we'll make it right with a fix or refund.`);
-  page.run("service-terms", "Service Terms",
+  runContentPage("service-terms", "Service Terms",
 `## Scope
 
 Every web development project starts with requirements submitted through your project dashboard. The agreed scope, timeline and price are recorded there before work begins.
@@ -974,10 +1001,10 @@ Work already performed is billed for. Before work begins, projects are fully ref
 ## Support
 
 Every build includes a post-launch support window listed on the service page. After that, our maintenance service is available.`);
-  page.run("about", "About FEMZYK",
+  runContentPage("about", "About FEMZYK",
 `## Who we are
 
-FEMZYK MARKET is the ecommerce and digital-commerce division of **FEMZYK ENTERPRISES** — a growing technology and digital-focused brand that brings together practical products, digital resources and technology services.
+FEMZYK MARKET is the ecommerce and digital-commerce platform of **FEMZYK ENTERPRISES**. It brings practical products, digital resources and technology services together under one brand.
 
 ## What we believe
 
@@ -997,30 +1024,19 @@ FEMZYK MARKET is built to grow: more categories, more digital resources, and mor
 
   // ── Site settings ────────────────────────────────────────────────────────
   const set = ins("INSERT OR IGNORE INTO site_settings (key, value_json) VALUES (?, ?)");
-  set.run("currency_rates", JSON.stringify({ USD: 1, CAD: 1.36, GBP: 0.79, NGN: 1550 }));
-  set.run("home_hero", JSON.stringify({
-    title: "Smart products. Digital solutions. Better everyday living.",
-    subtitle: "Discover thoughtfully selected products, useful digital resources and practical web solutions designed to make work and everyday life better.",
-  }));
+  set.run("currency_rates", JSON.stringify(process.env.NODE_ENV === "production"
+    ? { USD: 1 }
+    : { USD: 1, CAD: 1.36, GBP: 0.79, NGN: 1550 }));
+  set.run("home_hero", JSON.stringify(process.env.NODE_ENV === "production"
+    ? {
+        title: "FEMZYK MARKET",
+        subtitle: "Store and business information is being prepared. Please check back soon.",
+      }
+    : {
+        title: "Smart products. Digital solutions. Better everyday living.",
+        subtitle: "Discover thoughtfully selected products, useful digital resources and practical web solutions designed to make work and everyday life better.",
+      }));
   set.run("promotion", JSON.stringify({ active: false, message: "", ends_at: null }));
-
-  // ── A handful of initial reviews (marked as seeded) ─────────────────────
-  // The platform otherwise only shows verified, moderated customer reviews.
-  const rev = ins(
-    "INSERT INTO reviews (product_id, rating, title, body, author_name, is_verified, is_seed, status, created_at) VALUES (?, ?, ?, ?, ?, 0, 1, 'approved', ?)"
-  );
-  rev.run(prodId("femzyk-lumora-candle-warmer"), 5, "No more open flames in the bedroom",
-    "I stopped burning candles because of my cat. This warms them without a flame and the dimmer is genuinely useful. Heats my candle evenly within about 20 minutes.", "Maya R.", daysAgo(12));
-  rev.run(prodId("femzyk-lumora-candle-warmer"), 4, "Great, wish the cable were longer",
-    "Works exactly as described — my candles last longer and melt evenly. Only small wish: a longer cable. Otherwise very happy.", "D. Okafor", daysAgo(6));
-  rev.run(prodId("femzyk-creator-desk-kit"), 5, "My desk finally looks intentional",
-    "The mat is bigger than I expected (in a good way) and the weighted cable holder actually stays put. Good quality for the price.", "Sofia M.", daysAgo(9));
-  rev.run(prodId("femzyk-nova-dog-grooming-kit"), 5, "My golden actually enjoys it",
-    "The slicker brush is gentle and the case keeps everything together. First grooming kit where my dog stays calm.", "James T.", daysAgo(11));
-  rev.run(prodId("femzyk-business-creator-template-bundle"), 5, "Saved me a week of formatting",
-    "The proposal and invoice templates are genuinely well structured. Edited everything in Google Docs without issues.", "Amara N.", daysAgo(5));
-  rev.run(prodId("business-website-development"), 5, "Clear process from start to launch",
-    "The requirements dashboard made it easy to brief the team, and the revision rounds were structured. My site launched on the estimated date.", "R. Whitfield", daysAgo(4));
 
   console.log("[seed] FEMZYK MARKET seeded: categories, products, services, policies and configuration.");
 }

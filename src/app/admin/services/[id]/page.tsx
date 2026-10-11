@@ -3,11 +3,12 @@ import { q, q1 } from "@/lib/db";
 import { PROJECT_STATUS_LABELS, PROJECT_TRANSITIONS } from "@/lib/statemachine";
 import { parseJson } from "@/lib/util";
 import ProjectAdminPanel from "./ProjectAdminPanel";
+import FileShare from "@/components/project/FileShare";
 
 export const dynamic = "force-dynamic";
 
-export default function AdminProjectDetail({ params }: { params: { id: string } }) {
-  const project = q1<any>("SELECT * FROM projects WHERE id = ?", params.id);
+export default async function AdminProjectDetail({ params }: { params: Promise<{ id: string }> }) {
+  const project = q1<any>("SELECT * FROM projects WHERE id = ?", (await params).id);
   if (!project) notFound();
   const product = project.product_id ? q1<any>("SELECT name FROM products WHERE id = ?", project.product_id) : null;
   const requirement = q1<any>("SELECT * FROM project_requirements WHERE project_id = ? ORDER BY submitted_at DESC LIMIT 1", project.id);
@@ -53,12 +54,18 @@ export default function AdminProjectDetail({ params }: { params: { id: string } 
           </div>
         </div>
 
-        <ProjectAdminPanel
-          projectId={project.id}
-          status={project.status}
-          nextStatuses={PROJECT_TRANSITIONS[project.status] ?? []}
-          milestones={milestones.map((m) => ({ id: m.id, title: m.title, status: m.status }))}
-        />
+        <div className="space-y-4">
+          <div className="card p-5">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-mist-400 mb-3">Project files</h2>
+            <FileShare projectRef={project.reference} role="team" />
+          </div>
+          <ProjectAdminPanel
+            projectId={project.id}
+            status={project.status}
+            nextStatuses={PROJECT_TRANSITIONS[project.status] ?? []}
+            milestones={milestones.map((m) => ({ id: m.id, title: m.title, status: m.status }))}
+          />
+        </div>
       </div>
     </div>
   );

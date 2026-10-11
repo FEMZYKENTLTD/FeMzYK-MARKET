@@ -3,8 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 /** Serve admin-uploaded public images from data/uploads. */
-export async function GET(_req: NextRequest, { params }: { params: { file: string } }) {
-  const safe = path.basename(params.file);
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ file: string }> }) {
+  const safe = path.basename((await params).file);
   const abs = path.join(process.cwd(), "data/uploads", safe);
   if (!fs.existsSync(abs)) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const type = abs.endsWith(".png") ? "image/png" : abs.endsWith(".webp") ? "image/webp" : "image/jpeg";

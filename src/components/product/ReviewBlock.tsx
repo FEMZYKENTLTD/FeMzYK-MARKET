@@ -66,12 +66,14 @@ export default function ReviewBlock({
             <p className="text-sm text-mist-500 mt-1">No approved reviews yet.</p>
           )}
         </div>
-        {canReview ? (
+        {canReview && hasPurchased ? (
           <button className="btn-outline btn-md" onClick={() => setShowForm(!showForm)}>
             {showForm ? "Close" : "Write a review"}
           </button>
+        ) : canReview ? (
+          <p className="text-xs text-mist-500">Reviews are open to customers with a confirmed, paid purchase.</p>
         ) : (
-          <Link href={`/account/login?next=/products/reviews/${productId}`} className="btn-outline btn-md">
+          <Link href="/account/login" className="btn-outline btn-md">
             Sign in to review
           </Link>
         )}

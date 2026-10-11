@@ -3,10 +3,10 @@ import { adminUser, audit, jsonError } from "@/lib/adminApi";
 import { q, q1, insert, tx } from "@/lib/db";
 import { slugify } from "@/lib/util";
 
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const admin = adminUser();
-    const src = q1<any>("SELECT * FROM products WHERE id = ?", params.id);
+    const admin = await adminUser();
+    const src = q1<any>("SELECT * FROM products WHERE id = ?", (await params).id);
     if (!src) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const id = tx(() => {
@@ -37,7 +37,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       }
       return newId;
     });
-    audit(admin.id, "product_duplicated", "product", id, { from: Number(params.id) });
+    audit(admin.id, "product_duplicated", "product", id, { from: Number((await params).id) });
     return NextResponse.json({ ok: true, id });
   } catch (e: any) {
     const { error, status } = jsonError(e);

@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     const data = schema.parse(body);
     const id = await registerUser({ email: data.email, password: data.password, firstName: data.firstName, lastName: data.lastName, marketing: data.marketing });
     const token = createSession(id);
-    setSessionCookie(token);
+    await setSessionCookie(token);
     sendEmail(data.email, "welcome", { name: data.firstName });
     return NextResponse.json({ ok: true });
   } catch (e: any) {

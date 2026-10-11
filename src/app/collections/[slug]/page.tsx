@@ -1,19 +1,20 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
 import { getCollection } from "@/lib/repo/catalog";
 import ProductCard from "@/components/product/ProductCard";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
+import { getDisplayCurrency } from "@/lib/moneyServer";
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
-  const col = getCollection(params.slug);
-  return { title: col?.name || "Collection", description: col?.description };
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const col = getCollection((await params).slug);
+  if (!col || col.items.length === 0) return { title: "Collection" };
+  return { title: col.name, description: col.description };
 }
 
-export default function CollectionPage({ params }: { params: { slug: string } }) {
-  const col = getCollection(params.slug);
-  if (!col) notFound();
-  const currency = cookies().get("fm_currency")?.value || "USD";
+export default async function CollectionPage({ params }: { params: Promise<{ slug: string }> }) {
+  const col = getCollection((await params).slug);
+  if (!col || col.items.length === 0) notFound();
+  const currency = await getDisplayCurrency();
 
   return (
     <div className="container-page py-8">

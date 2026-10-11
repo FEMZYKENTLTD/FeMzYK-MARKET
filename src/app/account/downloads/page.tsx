@@ -2,8 +2,8 @@ import { getSessionUser } from "@/lib/auth";
 import { q } from "@/lib/db";
 import EmptyState from "@/components/ui/EmptyState";
 
-export default function DownloadsPage() {
-  const user = getSessionUser()!;
+export default async function DownloadsPage() {
+  const user = (await getSessionUser())!;
   const items = q<any>(
     `SELECT de.*, p.name, p.slug, p.digital_file_type, p.digital_version,
             (SELECT COUNT(*) FROM digital_downloads dd WHERE dd.entitlement_id = de.id) AS total_downloads

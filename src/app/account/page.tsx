@@ -5,8 +5,8 @@ import { formatMoney } from "@/lib/money";
 import { ORDER_STATUS_LABELS, PROJECT_STATUS_LABELS } from "@/lib/statemachine";
 import { timeAgo } from "@/lib/util";
 
-export default function AccountOverview() {
-  const user = getSessionUser()!;
+export default async function AccountOverview() {
+  const user = (await getSessionUser())!;
   const orders = q<any>("SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 5", user.id);
   const downloads = q<any>(
     `SELECT de.*, p.name FROM digital_entitlements de JOIN products p ON p.id = de.product_id WHERE de.user_id = ? ORDER BY de.created_at DESC LIMIT 5`,

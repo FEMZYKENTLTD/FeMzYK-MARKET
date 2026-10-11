@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { getSessionUser } from "@/lib/auth";
 import { getCartToken } from "@/lib/cart";
@@ -9,10 +8,11 @@ import NavClient from "./NavClient";
 import SearchBox from "./SearchBox";
 import CurrencyPicker from "./CurrencyPicker";
 import CartIcon from "./CartIcon";
+import { getDisplayCurrency } from "@/lib/moneyServer";
 
-export default function Header() {
-  const user = getSessionUser();
-  const cartToken = getCartToken();
+export default async function Header() {
+  const user = await getSessionUser();
+  const cartToken = await getCartToken();
   const cartCount =
     cartToken != null
       ? q1<{ c: number }>(
@@ -21,7 +21,7 @@ export default function Header() {
           cartToken
         )?.c ?? 0
       : 0;
-  const currency = cookies().get("fm_currency")?.value || "USD";
+  const currency = await getDisplayCurrency();
   const menu = menuTree();
   const currencies = Object.values(getCurrencies());
 

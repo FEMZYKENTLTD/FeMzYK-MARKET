@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import TicketChecker from "@/components/support/TicketChecker";
 
 export const metadata: Metadata = { title: "Help Center" };
 
@@ -10,7 +11,7 @@ const cards = [
   ["⚡", "Digital downloads", "Access, limits, expiry and updates for digital purchases.", "/digital-products-policy"],
   ["🛠️", "Web development projects", "Requirements, revisions and project status explained.", "/service-terms"],
   ["❓", "FAQ", "Quick answers to the most common questions.", "/faq"],
-  ["✉️", "Contact us", "Reach a real person — we reply within one business day.", "/contact"],
+  ["✉️", "Contact us", "Create a trackable support request and follow it in the Help Center.", "/contact"],
   ["💳", "Payments", "How checkout works and what happens if a payment fails.", "/faq"],
 ];
 
@@ -31,7 +32,10 @@ export default function HelpCenter() {
           </Link>
         ))}
       </div>
-      <div className="mt-10 card p-6 text-center">
+      <div className="mt-10">
+        <TicketChecker />
+      </div>
+      <div className="mt-6 card p-6 text-center">
         <p className="text-sm text-mist-300">
           Still stuck? <Link href="/contact" className="text-gold-400 hover:text-gold-300 font-medium">Send us a message</Link> — include your order number if it's about an order, and we'll get back to you fast.
         </p>

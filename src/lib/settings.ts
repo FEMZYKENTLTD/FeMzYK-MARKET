@@ -35,14 +35,11 @@ export function siteConfig(): SiteConfig {
   return getSettings<SiteConfig>("site", {
     storeName: "FEMZYK MARKET",
     tagline: "Smart products. Digital solutions. Better everyday living.",
-    supportEmail: "support@femzymarket.com",
-    businessName: "FEMZYK ENTERPRISES",
-    businessAddress: "FEMZYK ENTERPRISES — Remote-first, serving customers worldwide",
-    social: [
-      { name: "X / Twitter", url: "https://x.com/femzyk" },
-      { name: "Instagram", url: "https://instagram.com/femzyk" },
-    ],
+    supportEmail: process.env.SUPPORT_EMAIL || "",
+    businessName: process.env.BUSINESS_NAME || "FEMZYK MARKET",
+    businessAddress: process.env.BUSINESS_ADDRESS || "",
+    social: [],
     announcement: "",
-    freeShippingNote: "Free standard shipping on US orders over $75",
+    freeShippingNote: "",
   });
 }

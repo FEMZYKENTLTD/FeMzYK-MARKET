@@ -1,15 +1,24 @@
 import { Metadata } from "next";
+import { cookies } from "next/headers";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { q1, q } from "@/lib/db";
 import { formatMoney } from "@/lib/money";
 import { ORDER_STATUS_LABELS } from "@/lib/statemachine";
 import EmptyState from "@/components/ui/EmptyState";
+import { getSessionUser } from "@/lib/auth";
+import { hasOrderAccess, orderAccessCookieName } from "@/lib/orderAccess";
 
-export const metadata: Metadata = { title: "Order confirmed" };
+export const metadata: Metadata = { title: "Order confirmation", robots: { index: false, follow: false } };
 
-export default function OrderConfirmationPage({ searchParams }: { searchParams: { order?: string } }) {
-  const orderNumber = searchParams.order || "";
+export default async function OrderConfirmationPage({ searchParams }: { searchParams: Promise<{ order?: string }> }) {
+  const orderNumber = (await searchParams).order || "";
   const order = orderNumber ? q1<any>("SELECT * FROM orders WHERE order_number = ?", orderNumber) : null;
+  if (order) {
+    const user = await getSessionUser();
+    const access = (await cookies()).get(orderAccessCookieName(order.order_number))?.value;
+    if (order.user_id !== user?.id && !hasOrderAccess(access, order.order_number, order.confirmation_token)) notFound();
+  }
 
   if (!order) {
     return (
@@ -41,8 +50,7 @@ export default function OrderConfirmationPage({ searchParams }: { searchParams: 
             </div>
             <h1 className="font-display text-3xl text-cream-50">Thank you. Your order is confirmed.</h1>
             <p className="mt-3 text-mist-300">
-              Order <span className="text-gold-300 font-semibold">{order.order_number}</span> · A confirmation email is on its way to{" "}
-              <span className="text-cream-100">{order.email}</span>.
+              Order <span className="text-gold-300 font-semibold">{order.order_number}</span> · Save this number to track your order. Email notifications are queued but are not sent until a delivery provider is configured.
             </p>
           </>
         ) : (
@@ -83,15 +91,15 @@ export default function OrderConfirmationPage({ searchParams }: { searchParams: 
         <div className="card p-6 border-navy-600/50 mb-6">
           <h2 className="font-display text-lg text-cream-50 mb-1">🛠️ Your project has been created</h2>
           <p className="text-sm text-mist-400 mb-4">
-            Next step: share your requirements so our team can get started. Track everything from your Services dashboard.
+              Next step: share your requirements in your private project workspace. Keep this browser available or create an account so you can return to the project later.
           </p>
           {projects.map((p) => (
             <div key={p.reference} className="flex items-center justify-between flex-wrap gap-3">
               <span className="text-sm text-cream-100">
                 Project <span className="text-gold-300">{p.reference}</span>
               </span>
-              <Link href={`/account/services`} className="btn-gold btn-sm">
-                Open project dashboard
+              <Link href={`/projects/${p.reference}`} className="btn-gold btn-sm">
+                Open project workspace
               </Link>
             </div>
           ))}

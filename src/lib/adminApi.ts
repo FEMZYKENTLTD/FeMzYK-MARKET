@@ -1,8 +1,8 @@
 import { requireAdmin, SessionUser, audit } from "./auth";
 
 /** Shared guard + helpers for admin API routes. */
-export function adminUser(): SessionUser {
-  return requireAdmin();
+export async function adminUser(): Promise<SessionUser> {
+  return await requireAdmin();
 }
 
 export { audit };

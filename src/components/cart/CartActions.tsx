@@ -23,7 +23,7 @@ function LineRow({ line, currency }: { line: CartLine; currency: string }) {
   const [busy, setBusy] = useState(false);
   const unit = convertCents(line.unit_price_cents, currency);
   const typeLabel =
-    line.type_code === "SERVICE" || line.type_code === "SERVICE_PACKAGE" ? "Service" : line.type_code.startsWith("DIGITAL") || line.type_code === "DOWNLOADABLE_RESOURCE" ? "Digital · instant delivery" : "Physical · ships in 1–2 days";
+    line.type_code === "SERVICE" || line.type_code === "SERVICE_PACKAGE" ? "Service" : line.type_code.startsWith("DIGITAL") || line.type_code === "DOWNLOADABLE_RESOURCE" ? "Digital · access after payment verification" : "Physical · shipping options at checkout";
 
   async function update(fn: () => Promise<void>) {
     setBusy(true);

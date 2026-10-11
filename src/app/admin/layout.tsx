@@ -5,8 +5,8 @@ import AdminLogout from "./AdminLogout";
 
 export const metadata = { title: "Admin" };
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = getSessionUser();
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  const user = await getSessionUser();
   if (!user) redirect("/account/login?next=/admin");
   if (user.role !== "ADMIN") {
     return (

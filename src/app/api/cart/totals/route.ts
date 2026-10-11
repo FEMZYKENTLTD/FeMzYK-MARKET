@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cartTotals, validateCoupon, activeCouponState } from "@/lib/cart";
+import { cartTotals, activeCouponState } from "@/lib/cart";
+import { BASE_CURRENCY, getCurrencies } from "@/lib/money";
 
 export async function GET(req: NextRequest) {
-  const currency = req.cookies.get("fm_currency")?.value || "USD";
+  const requestedCurrency = req.cookies.get("fm_currency")?.value || BASE_CURRENCY;
+  const currency = getCurrencies()[requestedCurrency] ? requestedCurrency : BASE_CURRENCY;
   const country = req.nextUrl.searchParams.get("country") || undefined;
-  const couponState = activeCouponState()?.coupon ?? null;
-  const totals = cartTotals(currency, { country, coupon: couponState });
+  const couponState = (await activeCouponState())?.coupon ?? null;
+  const totals = await cartTotals(currency, { country, coupon: couponState });
   return NextResponse.json({
     count: totals.count,
     currency,

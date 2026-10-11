@@ -16,8 +16,12 @@ export default function SettingsManager() {
     setMsg("");
     try {
       const rates: Record<string, number> = {};
-      for (const [k, v] of Object.entries(data.currency_rates || {})) rates[k] = Number(v);
-      await adminFetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify({ site: data.site, currency_rates: rates, promotion: data.promotion }) });
+      for (const [k, v] of Object.entries(data.currency_rates || {})) {
+        if (String(v).trim() !== "") rates[k] = Number(v);
+      }
+      const taxes: Record<string, number> = {};
+      for (const [k, v] of Object.entries(data.tax_rates || {})) taxes[k] = Number(v);
+      await adminFetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify({ site: data.site, currency_rates: rates, tax_rates: taxes, promotion: data.promotion }) });
       setMsg("Settings saved.");
     } catch (e: any) {
       setMsg(e.message);
@@ -42,14 +46,28 @@ export default function SettingsManager() {
       <div className="card p-6 space-y-4">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-mist-400">Multi-currency rates (1 USD =)</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {Object.keys(data.currency_rates).map((code) => (
+          {["USD", "CAD", "GBP", "NGN"].map((code) => (
             <div key={code}>
               <label className="label">{code}</label>
-              <input type="number" step="0.0001" className="input" value={data.currency_rates[code]} onChange={(e) => setData({ ...data, currency_rates: { ...data.currency_rates, [code]: e.target.value } })} />
+              <input type="number" min="0" step="0.0001" className="input" value={data.currency_rates[code] ?? ""} placeholder={code === "USD" ? "1" : "Disabled"} onChange={(e) => setData({ ...data, currency_rates: { ...data.currency_rates, [code]: e.target.value } })} />
             </div>
           ))}
         </div>
-        <p className="text-xs text-mist-500">USD, CAD, GBP and NGN are supported now; additional currencies can be added to the platform without redesign.</p>
+        <p className="text-xs text-mist-500">Only currencies with a positive saved rate are offered. Leave a non-base rate blank to disable it. Confirm current exchange rates and payment-provider support before enabling; USD must remain 1.</p>
+      </div>
+
+      <div className="card p-6 space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-mist-400">Tax rates by destination (%)</h2>
+        <p className="text-xs text-amber-200/80">Default rates are zero. Confirm applicable tax obligations with a qualified local adviser before enabling sales; this is not a tax-calculation service.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {Object.keys(data.tax_rates || {}).map((code) => (
+            <div key={code}>
+              <label className="label">{code} %</label>
+              <input type="number" min="0" max="100" step="0.01" className="input" value={data.tax_rates[code]} onChange={(e) => setData({ ...data, tax_rates: { ...data.tax_rates, [code]: e.target.value } })} />
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-mist-500">Only US, Canada, the UK and Nigeria are configured. Checkout shows the tax amount before payment.</p>
       </div>
 
       <div className="card p-6 space-y-4">

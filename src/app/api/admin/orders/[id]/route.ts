@@ -6,9 +6,9 @@ import { transitionOrder } from "@/lib/orders";
 import { canTransition, ORDER_TRANSITIONS } from "@/lib/statemachine";
 import { sendEmail } from "@/lib/email";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const admin = adminUser();
+    const admin = await adminUser();
     const data = z
       .object({
         status: z.string().optional(),
@@ -17,9 +17,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       })
       .parse(await req.json());
 
-    const order = /^\d+$/.test(params.id)
-      ? q1<any>("SELECT * FROM orders WHERE id = ?", params.id)
-      : q1<any>("SELECT * FROM orders WHERE order_number = ?", params.id);
+    const order = /^\d+$/.test((await params).id)
+      ? q1<any>("SELECT * FROM orders WHERE id = ?", (await params).id)
+      : q1<any>("SELECT * FROM orders WHERE order_number = ?", (await params).id);
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
 
     if (data.status && data.status !== order.status) {
@@ -55,12 +55,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    adminUser();
-    const order = /^\d+$/.test(params.id)
-      ? q1<any>("SELECT * FROM orders WHERE id = ?", params.id)
-      : q1<any>("SELECT * FROM orders WHERE order_number = ?", params.id);
+    await adminUser();
+    const order = /^\d+$/.test((await params).id)
+      ? q1<any>("SELECT * FROM orders WHERE id = ?", (await params).id)
+      : q1<any>("SELECT * FROM orders WHERE order_number = ?", (await params).id);
     if (!order) return NextResponse.json({ error: "Order not found." }, { status: 404 });
     order.items = q("SELECT * FROM order_items WHERE order_id = ?", order.id);
     order.shipments = q("SELECT * FROM shipments WHERE order_id = ?", order.id);

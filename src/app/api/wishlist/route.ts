@@ -5,7 +5,7 @@ import { insert, q1, run } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const user = getSessionUser();
+    const user = await getSessionUser();
     if (!user) throw new ApiError(401, "Please sign in to use your wishlist.");
     const body = await req.json();
     const { productId } = z.object({ productId: z.number().int().positive() }).parse(body);

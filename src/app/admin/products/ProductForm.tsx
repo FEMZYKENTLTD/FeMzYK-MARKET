@@ -59,7 +59,7 @@ interface FormState {
 }
 
 const EMPTY: FormState = {
-  type_code: "PHYSICAL_PRODUCT", sku: "", slug: "", name: "", brand: "FEMZYK",
+  type_code: "PHYSICAL_PRODUCT", sku: "", slug: "", name: "", brand: "",
   short_description: "", description: "", price_cents: 0, compare_at_cents: null, cost_cents: null,
   category_ids: [], tags: [], tagInput: "", track_inventory: true, stock_qty: 0, low_stock_threshold: 5,
   allow_backorder: false, requires_shipping: true, weight_grams: null, status: "draft", publish_at: "",
@@ -239,7 +239,7 @@ export default function ProductForm({ productId }: { productId?: number }) {
                 <input className="input" value={form.sku} onChange={(e) => set("sku", e.target.value.toUpperCase())} />
               </div>
               <div>
-                <label className="label">Brand</label>
+                <label className="label">Brand / manufacturer (if applicable)</label>
                 <input className="input" value={form.brand} onChange={(e) => set("brand", e.target.value)} />
               </div>
               <div>

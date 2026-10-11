@@ -1,10 +1,10 @@
-import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
 import { getProductBySlug, relatedProducts, boughtTogether, incrementViews } from "@/lib/repo/catalog";
 import { q, run } from "@/lib/db";
+import { getActiveDigitalFile } from "@/lib/digital";
 import { convertCents, formatMoney } from "@/lib/money";
 import { getSessionUser } from "@/lib/auth";
 import { track } from "@/lib/analytics";
@@ -15,9 +15,11 @@ import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import FaqAccordion from "@/components/ui/FaqAccordion";
 import ReviewBlock from "@/components/product/ReviewBlock";
 import Gallery from "@/components/product/Gallery";
+import { getDisplayCurrency } from "@/lib/moneyServer";
+import { getPaymentProvider } from "@/lib/payments";
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
-  const p = getProductBySlug(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const p = getProductBySlug((await params).slug);
   if (!p) return { title: "Product not found" };
   return {
     title: p.seo_title || p.name,
@@ -26,31 +28,36 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   };
 }
 
-export default function ProductPage({ params }: { params: { slug: string } }) {
-  const p = getProductBySlug(params.slug);
+export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
+  const p = getProductBySlug((await params).slug);
   if (!p || p.status !== "published") notFound();
 
   incrementViews(p.id);
   track("product_view", { slug: p.slug, type: p.type_code });
 
-  const currency = cookies().get("fm_currency")?.value || "USD";
-  const user = getSessionUser();
+  const currency = await getDisplayCurrency();
+  const user = await getSessionUser();
+  const provider = (() => {
+    try { return getPaymentProvider(); } catch { return null; }
+  })();
   const isService = p.type_code === "SERVICE" || p.type_code === "SERVICE_PACKAGE";
   if (isService) {
     // Services have a dedicated layout.
     return <ServiceRedirect slug={p.slug} />;
   }
   const isDigital = p.type_code === "DIGITAL_PRODUCT" || p.type_code === "DOWNLOADABLE_RESOURCE";
+  const digitalFileReady = !isDigital || !!getActiveDigitalFile(p.id);
 
   const price = convertCents(p.price_cents, currency);
   const compare = p.compare_at_cents ? convertCents(p.compare_at_cents, currency) : null;
-  const outOfStock = p.track_inventory && p.stock_qty <= 0 && !p.allow_backorder;
+  const inventoryOut = p.track_inventory && p.stock_qty <= 0 && !p.allow_backorder;
+  const outOfStock = inventoryOut || !digitalFileReady;
   const lowStock = p.track_inventory && p.stock_qty > 0 && p.stock_qty <= p.low_stock_threshold;
 
   const related = relatedProducts(p, 4);
   const fbt = boughtTogether(p.id, 3).filter((x) => x.id !== p.id);
   const reviews = q<any>(
-    "SELECT rating, title, body, author_name, is_verified, is_seed, created_at FROM reviews WHERE product_id = ? AND status = 'approved' ORDER BY created_at DESC LIMIT 8",
+    "SELECT rating, title, body, author_name, is_verified, is_seed, created_at FROM reviews WHERE product_id = ? AND status = 'approved' AND is_verified = 1 AND is_seed = 0 ORDER BY created_at DESC LIMIT 8",
     p.id
   );
   const ratingAvg = p.rating_avg ? Number(p.rating_avg) : 0;
@@ -60,7 +67,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
   const hasPurchased = user
     ? !!q(
         `SELECT oi.id FROM order_items oi JOIN orders o ON o.id = oi.order_id
-         WHERE o.user_id = ? AND oi.product_id = ? AND o.status NOT IN ('PENDING_PAYMENT','PAYMENT_FAILED','CANCELLED') LIMIT 1`,
+         WHERE o.user_id = ? AND oi.product_id = ? AND o.paid_at IS NOT NULL AND o.status NOT IN ('CANCELLED','REFUNDED') LIMIT 1`,
         user.id,
         p.id
       ).length
@@ -73,7 +80,7 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
     name: p.name,
     description: p.short_description,
     sku: p.sku,
-    brand: { "@type": "Brand", name: p.brand || "FEMZYK" },
+    ...(p.brand ? { brand: { "@type": "Brand", name: p.brand } } : {}),
     image: p.images?.map((i: any) => i.url) ?? [],
     offers: {
       "@type": "Offer",
@@ -105,9 +112,9 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
         {/* Purchase panel */}
         <div>
           <div className="flex flex-wrap gap-2 mb-3">
-            {isDigital && <span className="badge-gold">Digital product · Instant delivery</span>}
-            {!!p.is_bestseller && <span className="badge-gold">Bestseller</span>}
-            {!!p.is_new && <span className="badge-gray">New arrival</span>}
+            {isDigital && <span className="badge-gold">{digitalFileReady ? "Digital download" : "Download file not available"}</span>}
+            {!!p.is_bestseller && Number(p.sales_count || 0) > 0 && <span className="badge-gold">Bestseller</span>}
+            {!!p.is_new && !(p.is_bestseller && Number(p.sales_count || 0) > 0) && <span className="badge-gray">New arrival</span>}
           </div>
           <h1 className="font-display text-3xl text-cream-50 leading-tight">{p.name}</h1>
 
@@ -138,13 +145,13 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
           {/* Availability */}
           <div className="mt-5">
             {outOfStock ? (
-              <span className="badge-red">Out of stock</span>
+              <span className="badge-red">{!digitalFileReady ? "Digital file not available" : "Out of stock"}</span>
             ) : lowStock ? (
               <span className="badge-gold">Low stock — {p.stock_qty} left</span>
             ) : p.track_inventory ? (
-              <span className="badge-green">In stock — ships in 1–2 business days</span>
+              <span className="badge-green">In stock</span>
             ) : (
-              <span className="badge-green">{isDigital ? "Available for instant download" : "Available"}</span>
+              <span className="badge-green">{isDigital ? "Secure download available" : "Available"}</span>
             )}
           </div>
 
@@ -155,17 +162,19 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
             )}
             {outOfStock && (
               <p className="text-sm text-mist-400">
-                This product is currently unavailable. Explore similar products below, or <Link href="/contact" className="text-gold-400 hover:text-gold-300">contact us</Link> to ask about restocking.
+                {!digitalFileReady
+                  ? "We are preparing the secure download file and are not accepting payment for it yet. Check back soon or contact support for an update."
+                  : <>This product is currently unavailable. Explore similar products below, or <Link href="/contact" className="text-gold-400 hover:text-gold-300">contact us</Link> to ask about restocking.</>}
               </p>
             )}
           </div>
 
           {/* Trust cards */}
           <div className="mt-8 grid grid-cols-2 gap-2.5">
-            <TrustCard icon="🔒" title="Secure checkout" sub="Payments verified server-side" />
-            <TrustCard icon="🚚" title={isDigital ? "Instant delivery" : "Delivery information"} sub={isDigital ? "Secure download after payment" : "Estimates shown at checkout"} href={isDigital ? "/digital-products-policy" : "/shipping"} />
-            <TrustCard icon="↩️" title={p.return_eligible ? "30-day returns" : "Digital product"} sub={p.return_eligible ? "Original condition" : "See digital policy"} href={p.return_eligible ? "/returns" : "/digital-products-policy"} />
-            <TrustCard icon="💬" title="Support" sub="We answer within 1 business day" href="/help" />
+            {provider && <TrustCard icon="🔒" title={`${provider.label} checkout`} sub="Payment status is verified server-side" />}
+            <TrustCard icon="🚚" title={isDigital ? "Digital delivery" : "Delivery information"} sub={isDigital ? (digitalFileReady ? "Access follows payment verification" : "Not available for purchase yet") : "Options depend on destination"} href={isDigital ? "/digital-products-policy" : "/shipping"} />
+            <TrustCard icon="↩️" title="Returns information" sub="Review eligibility and terms before ordering" href="/returns" />
+            <TrustCard icon="💬" title="Support" sub="Create a support request" href="/help" />
           </div>
 
           {/* What you get / included */}
@@ -278,24 +287,18 @@ export default function ProductPage({ params }: { params: { slug: string } }) {
         <div className="space-y-4 lg:sticky lg:top-24 self-start">
           <InfoPanel title={isDigital ? "Delivery" : "Shipping & delivery"}>
             {isDigital ? (
-              <p>Delivered instantly after payment. You'll receive a secure download link by email and in your account. <Link className="text-gold-400 hover:text-gold-300" href="/digital-products-policy">Digital product policy →</Link></p>
+              <p>After payment is verified, your private download link appears on the order confirmation page and in your account library when signed in. <Link className="text-gold-400 hover:text-gold-300" href="/digital-products-policy">Digital product policy →</Link></p>
             ) : (
               <>
-                <p>Ships in 1–2 business days. Estimated delivery:</p>
-                <ul className="mt-2 space-y-1">
-                  <li>United States: 3–7 business days</li>
-                  <li>Canada: 7–14 business days</li>
-                  <li>United Kingdom: 6–12 business days</li>
-                  <li>International: 10–21 business days</li>
-                </ul>
-                <Link className="text-gold-400 hover:text-gold-300 inline-block mt-2" href="/shipping">Full shipping policy →</Link>
+                <p>Shipping availability, cost and estimated delivery range depend on your destination and the active method shown at checkout. We will not accept an order if a suitable method is not configured.</p>
+                <Link className="text-gold-400 hover:text-gold-300 inline-block mt-2" href="/shipping">Shipping policy →</Link>
               </>
             )}
           </InfoPanel>
           <InfoPanel title="Returns">
             {p.return_eligible ? (
               <>
-                <p>30-day returns in original condition. Damaged or incorrect items are replaced or refunded in full.</p>
+                <p>This item is marked as return-eligible. Review the current Returns Policy for the applicable time window, condition and process before ordering.</p>
                 {p.return_notes && <p className="mt-2">{p.return_notes}</p>}
                 <Link className="text-gold-400 hover:text-gold-300 inline-block mt-2" href="/returns">Return policy →</Link>
               </>
@@ -385,5 +388,3 @@ function CheckIcon() {
     </svg>
   );
 }
-
-

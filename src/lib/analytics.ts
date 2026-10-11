@@ -1,5 +1,4 @@
-import { cookies } from "next/headers";
-import { insert } from "./db";
+import { insert, randomToken } from "./db";
 
 /**
  * Privacy-respecting first-party analytics. We record meaningful events
@@ -8,24 +7,15 @@ import { insert } from "./db";
  */
 
 export function getAnalyticsSession(): string {
-  let sid = cookies().get("fm_sid")?.value;
-  if (!sid) {
-    sid = Math.random().toString(36).slice(2) + Date.now().toString(36);
-  }
-  return sid;
+  // This identifier is deliberately ephemeral; no persistent tracking cookie is set.
+  return randomToken(12);
 }
 
 export function track(event: string, payload: Record<string, unknown> = {}, sessionId?: string): void {
   try {
-    let sid = sessionId;
-    try {
-      sid = sid || getAnalyticsSession();
-    } catch {
-      /* outside request context */
-    }
     insert(
       "INSERT INTO analytics_events (session_id, event, payload_json) VALUES (?, ?, ?)",
-      sid ?? null,
+      sessionId ?? getAnalyticsSession(),
       event,
       JSON.stringify(payload)
     );

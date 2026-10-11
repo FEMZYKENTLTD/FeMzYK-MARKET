@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../../tailwind.config.ts";
 
 :root {
   color-scheme: dark;
@@ -18,14 +17,14 @@ body {
 /* Subtle scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: theme("colors.ink.600") transparent;
+  scrollbar-color: var(--color-ink-600) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: theme("colors.ink.600");
+  background: var(--color-ink-600);
   border-radius: 8px;
 }
 
@@ -34,22 +33,26 @@ body {
     @apply mx-auto w-full max-w-page px-4 sm:px-6 lg:px-8;
   }
 
-  .btn {
+  .btn,
+  .btn-gold,
+  .btn-dark,
+  .btn-outline,
+  .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium text-sm transition-all duration-200
       focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-400 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950
       disabled:opacity-50 disabled:pointer-events-none select-none;
   }
   .btn-gold {
-    @apply btn bg-gold-500 text-ink-950 hover:bg-gold-400 active:scale-[.985] shadow-gold;
+    @apply bg-gold-500 text-ink-950 hover:bg-gold-400 active:scale-[.985] shadow-gold;
   }
   .btn-dark {
-    @apply btn bg-ink-700 text-cream-100 border border-ink-600 hover:bg-ink-600 hover:border-ink-500 active:scale-[.985];
+    @apply bg-ink-700 text-cream-100 border border-ink-600 hover:bg-ink-600 hover:border-ink-500 active:scale-[.985];
   }
   .btn-outline {
-    @apply btn border border-cream-100/20 text-cream-100 hover:border-gold-500/60 hover:text-gold-300 active:scale-[.985];
+    @apply border border-cream-100/20 text-cream-100 hover:border-gold-500/60 hover:text-gold-300 active:scale-[.985];
   }
   .btn-ghost {
-    @apply btn text-mist-300 hover:text-cream-100 hover:bg-ink-800;
+    @apply text-mist-300 hover:text-cream-100 hover:bg-ink-800;
   }
   .btn-lg {
     @apply px-6 py-3 text-base;
@@ -83,23 +86,28 @@ body {
     @apply font-display text-2xl sm:text-3xl text-cream-50;
   }
 
-  .badge {
+  .badge,
+  .badge-gold,
+  .badge-navy,
+  .badge-green,
+  .badge-red,
+  .badge-gray {
     @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium tracking-wide;
   }
   .badge-gold {
-    @apply badge bg-gold-500/15 text-gold-300 border border-gold-500/30;
+    @apply bg-gold-500/15 text-gold-300 border border-gold-500/30;
   }
   .badge-navy {
-    @apply badge bg-navy-800/70 text-cream-200 border border-navy-600/50;
+    @apply bg-navy-800/70 text-cream-200 border border-navy-600/50;
   }
   .badge-green {
-    @apply badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/30;
+    @apply bg-emerald-500/15 text-emerald-300 border border-emerald-500/30;
   }
   .badge-red {
-    @apply badge bg-red-500/15 text-red-300 border border-red-500/30;
+    @apply bg-red-500/15 text-red-300 border border-red-500/30;
   }
   .badge-gray {
-    @apply badge bg-ink-700 text-mist-300 border border-ink-600;
+    @apply bg-ink-700 text-mist-300 border border-ink-600;
   }
 
   .prose-femzyk {
@@ -134,7 +142,7 @@ body {
 /* Accessible focus for everything else */
 a:focus-visible,
 button:focus-visible {
-  outline: 2px solid theme("colors.gold.400");
+  outline: 2px solid var(--color-gold-400);
   outline-offset: 2px;
   border-radius: 4px;
 }

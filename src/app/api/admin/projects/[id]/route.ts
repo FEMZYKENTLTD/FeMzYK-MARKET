@@ -5,9 +5,9 @@ import { q1, run, insert } from "@/lib/db";
 import { canTransition, PROJECT_TRANSITIONS, PROJECT_STATUS_LABELS } from "@/lib/statemachine";
 import { sendEmail } from "@/lib/email";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const admin = adminUser();
+    const admin = await adminUser();
     const data = z
       .object({
         status: z.string().optional(),
@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       })
       .parse(await req.json());
 
-    const project = q1<any>("SELECT * FROM projects WHERE id = ?", params.id);
+    const project = q1<any>("SELECT * FROM projects WHERE id = ?", (await params).id);
     if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
 
     if (data.status && data.status !== project.status) {

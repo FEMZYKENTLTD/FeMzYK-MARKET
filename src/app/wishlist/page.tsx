@@ -1,16 +1,17 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { cookies } from "next/headers";
 import { getSessionUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { q } from "@/lib/db";
 import ProductCard from "@/components/product/ProductCard";
 import EmptyState from "@/components/ui/EmptyState";
+import { getDisplayCurrency } from "@/lib/moneyServer";
 
 export const metadata: Metadata = { title: "Wishlist" };
 
-export default function WishlistPage() {
-  const user = getSessionUser();
-  const currency = cookies().get("fm_currency")?.value || "USD";
+export default async function WishlistPage() {
+  const user = await getSessionUser();
+  const currency = await getDisplayCurrency();
 
   if (!user) {
     return (
@@ -23,8 +24,8 @@ export default function WishlistPage() {
 
   const items = q<any>(
     `SELECT p.id, p.slug, p.name, p.type_code, p.price_cents, p.compare_at_cents, p.is_bestseller, p.is_new, p.stock_qty, p.track_inventory,
-            (SELECT AVG(r.rating) FROM reviews r WHERE r.product_id = p.id AND r.status='approved') AS rating_avg,
-            (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status='approved') AS rating_count,
+            (SELECT AVG(r.rating) FROM reviews r WHERE r.product_id = p.id AND r.status='approved' AND r.is_verified=1 AND r.is_seed=0) AS rating_avg,
+            (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status='approved' AND r.is_verified=1 AND r.is_seed=0) AS rating_count,
             (SELECT url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.position LIMIT 1) AS image,
             (SELECT alt FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.position LIMIT 1) AS image_alt
      FROM wishlist_items w JOIN products p ON p.id = w.product_id

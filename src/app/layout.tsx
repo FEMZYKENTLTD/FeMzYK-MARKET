@@ -9,18 +9,16 @@ import { syncRates } from "@/lib/moneyServer";
 // when offline). Declared in globals.css as --font-display / --font-sans.
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://femzykmarket.com"),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: {
-    default: "FEMZYK MARKET — Smart products. Digital solutions. Better everyday living.",
+    default: "FEMZYK MARKET",
     template: "%s | FEMZYK MARKET",
   },
-  description:
-    "Discover thoughtfully selected products, useful digital resources and practical web solutions from FEMZYK ENTERPRISES. Secure checkout, clear returns, worldwide delivery.",
+  description: "Store, digital-resource, and web-development information for FEMZYK MARKET. Availability and policies are shown where configured.",
   openGraph: {
     siteName: "FEMZYK MARKET",
-    title: "FEMZYK MARKET — Smart products. Digital solutions. Better everyday living.",
-    description:
-      "Thoughtfully selected products, digital resources and web development services — from FEMZYK ENTERPRISES.",
+    title: "FEMZYK MARKET",
+    description: "Store, digital-resource, and web-development information for FEMZYK MARKET.",
   },
 };
 

@@ -50,7 +50,7 @@ export class FlutterwaveProvider implements PaymentProvider {
     const d = json?.data;
     if (!res.ok || json.status !== "success" || !d) return { status: "FAILED" };
     return {
-      status: d.status === "successful" ? "SUCCESS" : "FAILED",
+      status: d.status === "successful" ? "SUCCESS" : ["pending", "ongoing", "processing"].includes(String(d.status).toLowerCase()) ? "PENDING" : "FAILED",
       providerRef: String(d.flw_ref ?? ""),
       amountCents: Math.round((d.amount ?? 0) * 100),
       currency: d.currency,

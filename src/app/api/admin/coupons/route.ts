@@ -16,7 +16,7 @@ const schema = z.object({
 
 export async function GET() {
   try {
-    adminUser();
+    await adminUser();
     return NextResponse.json(q("SELECT * FROM coupons ORDER BY created_at DESC".replace("created_at", "id")));
   } catch (e: any) {
     const { error, status } = jsonError(e);
@@ -26,7 +26,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const admin = adminUser();
+    const admin = await adminUser();
     const data = schema.parse(await req.json());
     if (q1("SELECT id FROM coupons WHERE code = ? COLLATE NOCASE", data.code.trim().toUpperCase())) {
       return NextResponse.json({ error: "A coupon with this code already exists." }, { status: 409 });
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const admin = adminUser();
+    const admin = await adminUser();
     const data = schema.partial().extend({ id: z.number().int() }).parse(await req.json());
     const { id, ...rest } = data;
     const sets: string[] = [];
@@ -68,7 +68,7 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const admin = adminUser();
+    const admin = await adminUser();
     const id = Number(req.nextUrl.searchParams.get("id"));
     run("DELETE FROM coupons WHERE id = ?", id);
     audit(admin.id, "coupon_deleted", "coupon", id);

@@ -6,8 +6,8 @@ import { ORDER_STATUS_LABELS } from "@/lib/statemachine";
 import EmptyState from "@/components/ui/EmptyState";
 import { timeAgo } from "@/lib/util";
 
-export default function OrdersPage() {
-  const user = getSessionUser()!;
+export default async function OrdersPage() {
+  const user = (await getSessionUser())!;
   const orders = q<any>(
     `SELECT o.*, (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS item_count
      FROM orders o WHERE o.user_id = ? ORDER BY o.created_at DESC`,

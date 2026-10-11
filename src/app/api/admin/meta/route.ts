@@ -5,7 +5,7 @@ import { q } from "@/lib/db";
 /** Shared metadata for admin forms. */
 export async function GET() {
   try {
-    adminUser();
+    await adminUser();
     return NextResponse.json({
       types: q("SELECT code, name, requires_shipping, has_inventory FROM product_types ORDER BY id"),
       suppliers: q("SELECT id, name FROM suppliers WHERE is_active = 1 ORDER BY name"),

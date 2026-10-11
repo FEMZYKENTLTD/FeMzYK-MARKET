@@ -2,7 +2,9 @@ import { cookies } from "next/headers";
 import { insert, q, q1, run, nowIso, randomToken } from "./db";
 import { ApiError } from "./auth";
 import { getProductById } from "./repo/catalog";
-import { convertCents, BASE_CURRENCY } from "./money";
+import { convertCents, BASE_CURRENCY, getCurrencies } from "./money";
+import { getActiveDigitalFile, isDigitalType } from "./digital";
+import { getSettings } from "./settings";
 
 export const CART_COOKIE = "fm_cart";
 
@@ -30,35 +32,43 @@ export interface CartLine {
   in_stock: boolean;
 }
 
-export function getCartToken(): string | undefined {
-  return cookies().get(CART_COOKIE)?.value;
+export async function getCartToken(): Promise<string | undefined> {
+  return (await cookies()).get(CART_COOKIE)?.value;
 }
 
-export function getOrCreateCartId(): number {
-  const token = getCartToken();
+export async function getOrCreateCartId(): Promise<number> {
+  const token = await getCartToken();
   if (token) {
     const c = q1<{ id: number }>("SELECT id FROM carts WHERE token = ?", token);
     if (c) return c.id;
   }
   const t = randomToken(16);
   const id = insert("INSERT INTO carts (token) VALUES (?)", t);
-  cookies().set(CART_COOKIE, t, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 86400 * 90 });
+  (await cookies()).set(CART_COOKIE, t, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 86400 * 90 });
   return id;
 }
 
-export function addToCart(productId: number, variantId: number | null, qty: number, packageId: number | null = null): void {
+export async function addToCart(productId: number, variantId: number | null, qty: number, packageId: number | null = null): Promise<void> {
   const p = getProductById(productId);
   if (!p || p.status !== "published") throw new ApiError(400, "This product is currently unavailable.");
+  if (isDigitalType(p.type_code) && !getActiveDigitalFile(productId)) {
+    throw new ApiError(409, "This digital download is being prepared and cannot be purchased yet. Please check back soon or contact support.");
+  }
   qty = Math.max(1, Math.min(99, Math.floor(qty)));
-  if ((p.type_code === "SERVICE" || p.type_code === "SERVICE_PACKAGE") && packageId) {
-    const pkg = q1("SELECT id FROM service_packages WHERE id = ? AND product_id = ?", packageId, productId);
-    if (!pkg) throw new ApiError(400, "That package is not available for this service.");
+  if (p.type_code === "SERVICE" || p.type_code === "SERVICE_PACKAGE") {
+    const packageCount = q1<{ count: number }>("SELECT COUNT(*) AS count FROM service_packages WHERE product_id = ?", productId)?.count ?? 0;
+    if (packageId) {
+      const pkg = q1("SELECT id FROM service_packages WHERE id = ? AND product_id = ?", packageId, productId);
+      if (!pkg) throw new ApiError(400, "That package is not available for this service.");
+    } else if (packageCount > 0 || p.service_quote_type !== "fixed") {
+      throw new ApiError(409, "A configured service package or fixed price is required before checkout.");
+    }
   }
   if (p.track_inventory && !p.allow_backorder) {
     const avail = variantId
       ? q1<{ stock_qty: number }>("SELECT stock_qty FROM product_variants WHERE id = ? AND product_id = ?", variantId, productId)?.stock_qty ?? 0
       : p.stock_qty;
-    const token = getCartToken();
+    const token = await getCartToken();
     const already = token
       ? q1<{ qty: number }>(
           "SELECT qty FROM cart_items ci JOIN carts c ON c.id = ci.cart_id WHERE c.token = ? AND ci.product_id = ? AND ci.variant_id IS ?",
@@ -69,22 +79,24 @@ export function addToCart(productId: number, variantId: number | null, qty: numb
       : 0;
     if (already + qty > avail) throw new ApiError(409, "We don't have enough stock for that quantity right now.");
   }
-  const cartId = getOrCreateCartId();
+  const cartId = await getOrCreateCartId();
   const meta = JSON.stringify(packageId ? { packageId } : {});
-  run(
-    `INSERT INTO cart_items (cart_id, product_id, variant_id, qty, meta_json) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (cart_id, product_id, variant_id) DO UPDATE SET qty = MIN(99, qty + excluded.qty), saved_for_later = 0, meta_json = excluded.meta_json`,
+  const existing = q1<{ id: number; qty: number }>(
+    "SELECT id, qty FROM cart_items WHERE cart_id = ? AND product_id = ? AND variant_id IS ? AND saved_for_later = 0 ORDER BY id LIMIT 1",
     cartId,
     productId,
-    variantId,
-    qty,
-    meta
+    variantId
   );
+  if (existing) {
+    run("UPDATE cart_items SET qty = MIN(99, ? + ?), meta_json = ? WHERE id = ?", existing.qty, qty, meta, existing.id);
+  } else {
+    insert("INSERT INTO cart_items (cart_id, product_id, variant_id, qty, meta_json) VALUES (?, ?, ?, ?, ?)", cartId, productId, variantId, qty, meta);
+  }
   run("UPDATE carts SET updated_at = ? WHERE id = ?", nowIso(), cartId);
 }
 
-export function activeCouponState() {
-  const token = getCartToken();
+export async function activeCouponState() {
+  const token = await getCartToken();
   if (!token) return null;
   const cart = q1<{ id: number; coupon_code: string | null }>("SELECT id, coupon_code FROM carts WHERE token = ?", token);
   if (!cart?.coupon_code) return { coupon: null };
@@ -199,13 +211,14 @@ export function quoteShipping(countryCode: string, subtotalCentsUsd: number): Sh
   };
 }
 
-export function cartTotals(currency: string, opts?: { country?: string; coupon?: CouponState | null }) {
-  const token = getCartToken();
+export async function cartTotals(currency: string, opts?: { country?: string; coupon?: CouponState | null }) {
+  if (!getCurrencies()[currency]) throw new ApiError(400, "That currency is not enabled for checkout.");
+  const token = await getCartToken();
   const cart = token ? q1<{ id: number }>("SELECT id FROM carts WHERE token = ?", token) : null;
   const lines = cart ? cartLines(cart.id) : [];
   const subtotalUsd = lines.reduce((s, l) => s + l.unit_price_cents * l.qty, 0);
   const needsShipping = lines.some((l) => l.requires_shipping);
-  const coupon = opts?.coupon === undefined ? activeCoupon() : opts.coupon;
+  const coupon = opts?.coupon === undefined ? await activeCoupon() : opts.coupon;
   const discountUsd = couponDiscount(coupon, subtotalUsd);
   const shipping = needsShipping && opts?.country ? quoteShipping(opts.country, subtotalUsd - discountUsd) : null;
   const shippingUsd = shipping?.priceCentsUsd ?? 0;
@@ -213,6 +226,11 @@ export function cartTotals(currency: string, opts?: { country?: string; coupon?:
   const taxUsd = Math.round((subtotalUsd - discountUsd) * taxRate);
   const totalUsd = subtotalUsd - discountUsd + shippingUsd + taxUsd;
   const rate = currency === BASE_CURRENCY ? 1 : convertCents(100, currency) / 100;
+  const subtotalDisp = lines.reduce((sum, line) => sum + convertCents(line.unit_price_cents * line.qty, currency), 0);
+  const discountDisp = convertCents(discountUsd, currency);
+  const shippingDisp = convertCents(shippingUsd, currency);
+  const taxDisp = convertCents(taxUsd, currency);
+  const totalDisp = subtotalDisp - discountDisp + shippingDisp + taxDisp;
   return {
     lines,
     currency,
@@ -226,23 +244,25 @@ export function cartTotals(currency: string, opts?: { country?: string; coupon?:
     totalUsd,
     needsShipping,
     count: lines.reduce((s, l) => s + l.qty, 0),
-    subtotalDisp: convertCents(subtotalUsd, currency),
-    discountDisp: convertCents(discountUsd, currency),
-    shippingDisp: convertCents(shippingUsd, currency),
-    taxDisp: convertCents(taxUsd, currency),
-    totalDisp: convertCents(totalUsd, currency),
+    subtotalDisp,
+    discountDisp,
+    shippingDisp,
+    taxDisp,
+    totalDisp,
     freeThresholdUsd: shipping?.freeThresholdCents ?? null,
   };
 }
 
 export function taxRateFor(country?: string): number {
-  // Configurable, transparent tax. Default 0 — prices shown are what you pay.
-  const rates: Record<string, number> = { US: 0, CA: 0, GB: 0, NG: 0 };
-  return country ? rates[country] ?? 0 : 0;
+  // Admin-configured percentage rates. Default zero is explicit, not an inferred tax calculation.
+  if (!country) return 0;
+  const rates = getSettings<Record<string, number>>("tax_rates", { US: 0, CA: 0, GB: 0, NG: 0 });
+  const percentage = Number(rates[country] ?? 0);
+  return Number.isFinite(percentage) && percentage >= 0 ? percentage / 100 : 0;
 }
 
-function activeCoupon(): CouponState | null {
-  const token = getCartToken();
+async function activeCoupon(): Promise<CouponState | null> {
+  const token = await getCartToken();
   if (!token) return null;
   const cart = q1<{ id: number; coupon_code: string | null }>("SELECT id, coupon_code FROM carts WHERE token = ?", token);
   if (!cart?.coupon_code) return null;
@@ -253,8 +273,8 @@ function activeCoupon(): CouponState | null {
   }
 }
 
-export function clearCart(): void {
-  const token = getCartToken();
+export async function clearCart(): Promise<void> {
+  const token = await getCartToken();
   if (!token) return;
   const cart = q1<{ id: number }>("SELECT id FROM carts WHERE token = ?", token);
   if (cart) {

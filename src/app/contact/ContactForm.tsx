@@ -46,7 +46,7 @@ export default function ContactForm() {
         <p className="text-4xl mb-4" aria-hidden>✅</p>
         <h2 className="font-display text-2xl text-cream-50">Message received</h2>
         <p className="text-sm text-mist-400 mt-3">
-          Your reference is <span className="text-gold-300 font-semibold">{done}</span>. We'll reply to your email — usually within one business day.
+          Your request is saved with reference <span className="text-gold-300 font-semibold">{done}</span>. Keep it, then use the <a href="/help" className="text-gold-300 hover:text-gold-200 underline">Help Center</a> and the same email address to view or add replies. Automated email delivery is not connected yet, so this page does not send a confirmation email.
         </p>
       </div>
     );

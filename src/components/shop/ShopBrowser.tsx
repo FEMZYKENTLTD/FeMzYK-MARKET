@@ -1,12 +1,12 @@
-import { cookies } from "next/headers";
 import Link from "next/link";
 import { listProducts, listCategories, getCategory } from "@/lib/repo/catalog";
 import ProductCard from "@/components/product/ProductCard";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import Pagination from "./Pagination";
 import SortSelect from "./SortSelect";
+import { getDisplayCurrency } from "@/lib/moneyServer";
 
-export default function ShopBrowser({
+export default async function ShopBrowser({
   searchParams,
   category,
   title,
@@ -19,7 +19,7 @@ export default function ShopBrowser({
   eyebrow?: string;
   description?: string;
 }) {
-  const currency = cookies().get("fm_currency")?.value || "USD";
+  const currency = await getDisplayCurrency();
   const sort = (searchParams.sort as any) || "featured";
   const page = Math.max(1, parseInt(searchParams.page || "1", 10) || 1);
   const type = searchParams.type;

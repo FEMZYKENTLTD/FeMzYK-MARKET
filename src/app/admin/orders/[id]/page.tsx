@@ -6,8 +6,8 @@ import OrderManager from "./OrderManager";
 
 export const dynamic = "force-dynamic";
 
-export default function AdminOrderDetail({ params }: { params: { id: string } }) {
-  const order = q1<any>("SELECT * FROM orders WHERE id = ?", params.id);
+export default async function AdminOrderDetail({ params }: { params: Promise<{ id: string }> }) {
+  const order = q1<any>("SELECT * FROM orders WHERE id = ?", (await params).id);
   if (!order) notFound();
   const items = q<any>("SELECT * FROM order_items WHERE order_id = ?", order.id);
   const shipments = q<any>("SELECT * FROM shipments WHERE order_id = ?", order.id);

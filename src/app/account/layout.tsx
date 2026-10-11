@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import LogoutButton from "./LogoutButton";
 
-export default function AccountLayout({ children }: { children: React.ReactNode }) {
-  const user = getSessionUser();
+export default async function AccountLayout({ children }: { children: React.ReactNode }) {
+  const user = await getSessionUser();
   if (!user) redirect("/account/login?next=/account");
 
   const links: [string, string][] = [

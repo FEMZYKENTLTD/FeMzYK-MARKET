@@ -5,7 +5,7 @@ import { run } from "@/lib/db";
 
 export async function PATCH(req: NextRequest) {
   try {
-    const user = requireUser();
+    const user = await requireUser();
     const data = z
       .object({
         firstName: z.string().max(60).optional(),

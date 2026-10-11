@@ -7,9 +7,9 @@ import { ORDER_STATUS_LABELS } from "@/lib/statemachine";
 import { parseJson } from "@/lib/util";
 import ReviewPrompt from "./ReviewPrompt";
 
-export default function OrderDetailPage({ params }: { params: { orderNumber: string } }) {
-  const user = getSessionUser()!;
-  const order = q1<any>("SELECT * FROM orders WHERE order_number = ? AND user_id = ?", params.orderNumber, user.id);
+export default async function OrderDetailPage({ params }: { params: Promise<{ orderNumber: string }> }) {
+  const user = (await getSessionUser())!;
+  const order = q1<any>("SELECT * FROM orders WHERE order_number = ? AND user_id = ?", (await params).orderNumber, user.id);
   if (!order) notFound();
 
   const items = q<any>("SELECT * FROM order_items WHERE order_id = ?", order.id);

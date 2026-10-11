@@ -4,31 +4,31 @@ import Link from "next/link";
 import { getProductBySlug, relatedProducts } from "@/lib/repo/catalog";
 import { q } from "@/lib/db";
 import { convertCents, formatMoney } from "@/lib/money";
-import { cookies } from "next/headers";
 import { track } from "@/lib/analytics";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import FaqAccordion from "@/components/ui/FaqAccordion";
 import ServicePurchaseBox from "@/components/product/ServicePurchaseBox";
+import { getDisplayCurrency } from "@/lib/moneyServer";
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
-  const p = getProductBySlug(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const p = getProductBySlug((await params).slug);
   if (!p) return { title: "Service not found" };
   return { title: p.seo_title || p.name, description: p.seo_description || p.short_description };
 }
 
-export default function ServiceDetailPage({ params }: { params: { slug: string } }) {
-  const p = getProductBySlug(params.slug);
-  if (!p || p.status !== "published") notFound();
+export default async function ServiceDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const p = getProductBySlug((await params).slug);
+  if (!p || p.status !== "published" || !["SERVICE", "SERVICE_PACKAGE"].includes(p.type_code)) notFound();
   track("service_view", { slug: p.slug });
 
-  const currency = cookies().get("fm_currency")?.value || "USD";
+  const currency = await getDisplayCurrency();
   const related = relatedProducts(p, 3);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Service",
     name: p.name,
     description: p.short_description,
-    provider: { "@type": "Organization", name: "FEMZYK ENTERPRISES" },
+    provider: { "@type": "Organization", name: "FEMZYK MARKET" },
     offers: { "@type": "Offer", price: (p.price_cents / 100).toFixed(2), priceCurrency: "USD" },
   };
 
@@ -39,15 +39,19 @@ export default function ServiceDetailPage({ params }: { params: { slug: string }
 
       <div className="grid lg:grid-cols-[1fr_380px] gap-10 mt-6">
         <div className="min-w-0">
-          <span className="badge-navy">Web Development Service</span>
+          <span className="badge-navy">Service listing</span>
           <h1 className="font-display text-3xl sm:text-4xl text-cream-50 mt-3 leading-tight">{p.name}</h1>
           <p className="mt-4 text-mist-300 text-[15px] leading-relaxed max-w-2xl">{p.short_description}</p>
 
           <div className="mt-6 flex flex-wrap gap-4 text-sm">
-            <span className="badge-gold px-3 py-1.5">
-              {p.service_quote_type === "starting" ? "From " : ""}
-              {formatMoney(convertCents(p.price_cents, currency), currency)}
-            </span>
+            {p.service_quote_type === "fixed" || (p.service_quote_type === "starting" && p.packages.length > 0) ? (
+              <span className="badge-gold px-3 py-1.5">
+                {p.service_quote_type === "starting" ? "From " : ""}
+                {formatMoney(convertCents(p.price_cents, currency), currency)}
+              </span>
+            ) : (
+              <span className="badge-gray px-3 py-1.5">See published package options for pricing</span>
+            )}
             {p.service_delivery_min_days && (
               <span className="badge-gray px-3 py-1.5">
                 Est. {p.service_delivery_min_days}–{p.service_delivery_max_days} days
@@ -87,7 +91,7 @@ export default function ServiceDetailPage({ params }: { params: { slug: string }
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-mist-500 mt-4">Need any of these? Ask for a custom quote — we scope everything transparently.</p>
+              <p className="text-xs text-mist-500 mt-4">Review the listing details and terms before ordering. Contact support if you need clarification.</p>
             </div>
           </div>
 
@@ -120,7 +124,7 @@ export default function ServiceDetailPage({ params }: { params: { slug: string }
           )}
 
           <div className="mt-10 card p-5 text-sm text-mist-400">
-            Covered by our <Link href="/service-terms" className="text-gold-400 hover:text-gold-300">Service Terms</Link>. Work is only billed once the scope is agreed, and unstarted projects are fully refundable.
+            Review the service scope and terms before ordering. For questions, <Link href="/help" className="text-gold-400 hover:text-gold-300">submit a support request</Link>.
           </div>
         </div>
 
@@ -128,12 +132,12 @@ export default function ServiceDetailPage({ params }: { params: { slug: string }
         <aside className="lg:sticky lg:top-24 self-start space-y-4">
           <ServicePurchaseBox product={{ id: p.id, slug: p.slug, priceCents: p.price_cents, quoteType: p.service_quote_type }} packages={p.packages ?? []} currency={currency} />
           <div className="card p-5">
-            <h3 className="text-sm font-semibold text-cream-100 mb-2">Prefer to talk first?</h3>
+            <h3 className="text-sm font-semibold text-cream-100 mb-2">Questions about this listing?</h3>
             <p className="text-[13px] text-mist-400 leading-relaxed">
-              Every project can start with a conversation. Tell us what you're thinking and we'll recommend the right scope.
+              Submit a support request before ordering if you need clarification about the published scope or terms.
             </p>
-            <Link href="/contact" className="btn-outline btn-md w-full mt-3">
-              Contact the team
+            <Link href="/help" className="btn-outline btn-md w-full mt-3">
+              Visit the Help Center
             </Link>
           </div>
         </aside>
@@ -144,8 +148,8 @@ export default function ServiceDetailPage({ params }: { params: { slug: string }
           <h2 className="section-title mb-6">Related services & resources</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {related.map((r) => (
-              <Link key={r.id} href={r.type_code === "SERVICE" ? `/services/${r.slug}` : `/products/${r.slug}`} className="card card-hover p-5">
-                <span className="badge-navy">{r.type_code === "SERVICE" ? "Service" : "Product"}</span>
+              <Link key={r.id} href={r.type_code === "SERVICE" || r.type_code === "SERVICE_PACKAGE" ? `/services/${r.slug}` : `/products/${r.slug}`} className="card card-hover p-5">
+                <span className="badge-navy">{r.type_code === "SERVICE" || r.type_code === "SERVICE_PACKAGE" ? "Service" : "Product"}</span>
                 <h3 className="text-sm font-semibold text-cream-100 mt-3">{r.name}</h3>
                 <p className="text-[13px] text-mist-400 mt-1.5 line-clamp-2">{r.short_description}</p>
               </Link>

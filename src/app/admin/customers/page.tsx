@@ -5,8 +5,8 @@ import { initials } from "@/lib/util";
 
 export const dynamic = "force-dynamic";
 
-export default function AdminCustomersPage({ searchParams }: { searchParams: { q?: string } }) {
-  const term = searchParams.q || "";
+export default async function AdminCustomersPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const term = (await searchParams).q || "";
   const where = term ? "WHERE u.email LIKE ? OR COALESCE(u.first_name,'') LIKE ? OR COALESCE(u.last_name,'') LIKE ?" : "";
   const params = term ? [`%${term}%`, `%${term}%`, `%${term}%`] : [];
   const customers = q<any>(

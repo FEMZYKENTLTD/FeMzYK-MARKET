@@ -5,7 +5,7 @@ import { q } from "@/lib/db";
 /** CSV export of the full catalog (admin-only). */
 export async function GET() {
   try {
-    adminUser();
+    await adminUser();
     const rows = q<any>(
       `SELECT p.id, p.sku, p.slug, p.name, p.type_code, p.brand, p.status, p.price_cents, p.compare_at_cents, p.stock_qty,
               p.is_featured, p.is_bestseller, p.sales_count, p.views, p.created_at,

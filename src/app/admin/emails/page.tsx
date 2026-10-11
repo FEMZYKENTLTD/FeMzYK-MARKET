@@ -9,8 +9,7 @@ export default function AdminEmailsPage() {
     <div>
       <h1 className="font-display text-2xl text-cream-50 mb-2">Email outbox</h1>
       <p className="text-sm text-mist-400 mb-6">
-        All transactional email (confirmations, shipping, downloads, project updates) is templated and queued here.
-        Connect EMAIL_API_KEY to deliver via your transactional provider; unsubscribe is respected for marketing mail.
+        Transactional message drafts are recorded here for review. <strong className="text-cream-200">Queued does not mean sent:</strong> no outbound email provider is connected in this build, so customers must use order tracking and the Help Center unless you arrange a separate delivery workflow.
       </p>
       <div className="card overflow-x-auto">
         <table className="w-full min-w-[700px]">

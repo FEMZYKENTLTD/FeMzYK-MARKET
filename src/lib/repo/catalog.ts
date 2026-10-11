@@ -4,6 +4,8 @@ import { parseJson } from "../util";
 export interface ProductRow {
   id: number;
   type_code: string;
+  service_quote_type?: string | null;
+  service_package_count?: number;
   sku: string;
   slug: string;
   name: string;
@@ -52,9 +54,10 @@ const LIST_SELECT = `
   SELECT p.id, p.type_code, p.sku, p.slug, p.name, p.brand, p.short_description,
          p.price_cents, p.compare_at_cents, p.currency, p.track_inventory, p.stock_qty,
          p.allow_backorder, p.requires_shipping, p.status, p.is_featured, p.is_bestseller,
-         p.is_new, p.sales_count, p.publish_at, p.created_at,
-         (SELECT AVG(r.rating) FROM reviews r WHERE r.product_id = p.id AND r.status = 'approved') AS rating_avg,
-         (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status = 'approved') AS rating_count,
+         p.is_new, p.sales_count, p.publish_at, p.created_at, p.service_quote_type,
+         (SELECT COUNT(*) FROM service_packages sp WHERE sp.product_id = p.id) AS service_package_count,
+         (SELECT AVG(r.rating) FROM reviews r WHERE r.product_id = p.id AND r.status = 'approved' AND r.is_verified = 1 AND r.is_seed = 0) AS rating_avg,
+         (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status = 'approved' AND r.is_verified = 1 AND r.is_seed = 0) AS rating_count,
          (SELECT url FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.position LIMIT 1) AS image,
          (SELECT alt FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.position LIMIT 1) AS image_alt,
          GROUP_CONCAT(DISTINCT c.slug) AS category_slugs,
@@ -65,7 +68,11 @@ const LIST_SELECT = `
 `;
 
 function buildWhere(f: ProductFilters): { where: string; params: unknown[] } {
-  const cond: string[] = ["p.status = 'published'", "(p.publish_at IS NULL OR p.publish_at <= datetime('now'))"];
+  const cond: string[] = [
+    "p.status = 'published'",
+    "(p.publish_at IS NULL OR p.publish_at <= datetime('now'))",
+    "(p.type_code NOT IN ('DIGITAL_PRODUCT','DOWNLOADABLE_RESOURCE') OR EXISTS (SELECT 1 FROM digital_files df WHERE df.product_id = p.id AND df.is_active = 1))",
+  ];
   const params: unknown[] = [];
   if (f.category) {
     cond.push(`(c.slug = ? OR EXISTS (SELECT 1 FROM categories sub WHERE sub.parent_id = c.id AND sub.slug = ?) OR EXISTS (
@@ -73,7 +80,9 @@ function buildWhere(f: ProductFilters): { where: string; params: unknown[] } {
       WHERE pc2.product_id = p.id AND (c2.slug = ? OR c2.parent_id IN (SELECT id FROM categories WHERE slug = ?))))`);
     params.push(f.category, f.category, f.category, f.category);
   }
-  if (f.type) {
+  if (f.type === "SERVICE") {
+    cond.push("p.type_code IN ('SERVICE','SERVICE_PACKAGE')");
+  } else if (f.type) {
     cond.push("p.type_code = ?");
     params.push(f.type);
   }
@@ -120,9 +129,9 @@ export function listProducts(f: ProductFilters = {}): { items: ProductRow[]; tot
 }
 
 export function getProductBySlug(slug: string) {
-  const p = q1<any>(`SELECT p.*, 
-      (SELECT AVG(r.rating) FROM reviews r WHERE r.product_id = p.id AND r.status='approved') AS rating_avg,
-      (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status='approved') AS rating_count
+  const p = q1<any>(`SELECT p.*,
+      (SELECT AVG(r.rating) FROM reviews r WHERE r.product_id = p.id AND r.status='approved' AND r.is_verified=1 AND r.is_seed=0) AS rating_avg,
+      (SELECT COUNT(*) FROM reviews r WHERE r.product_id = p.id AND r.status='approved' AND r.is_verified=1 AND r.is_seed=0) AS rating_count
     FROM products p WHERE p.slug = ?`, slug);
   if (!p) return null;
   p.images = q("SELECT url, alt, role FROM product_images WHERE product_id = ? ORDER BY position", p.id);
@@ -225,9 +234,15 @@ export function getCollection(slug: string) {
   if (rule.type) items = listProducts({ type: rule.type, perPage: rule.limit ?? 12, sort: rule.sort ?? "featured" }).items;
   else if (rule.tag) items = listProducts({ tag: rule.tag, perPage: rule.limit ?? 12 }).items;
   else if (rule.maxPrice) items = listProducts({ max: rule.maxPrice, perPage: rule.limit ?? 12, sort: "bestselling" }).items;
-  else if (manual.length) {
+  else if (rule.sort === "bestselling" || rule.sort === "new" || rule.sort === "featured") {
+    items = listProducts({ perPage: rule.limit ?? 12, sort: rule.sort }).items;
+    if (rule.sort === "bestselling") items = items.filter((p) => p.sales_count > 0);
+  } else if (manual.length) {
     const ids = manual.map((m) => m.id).join(",");
-    items = q<ProductRow>(`${LIST_SELECT} WHERE p.id IN (${ids}) AND p.status='published' GROUP BY p.id`);
+    items = q<ProductRow>(`${LIST_SELECT} WHERE p.id IN (${ids}) AND p.status='published' AND (p.type_code NOT IN ('DIGITAL_PRODUCT','DOWNLOADABLE_RESOURCE') OR EXISTS (SELECT 1 FROM digital_files df WHERE df.product_id = p.id AND df.is_active = 1)) GROUP BY p.id`);
+  } else if (!rule || Array.isArray(rule) || Object.keys(rule).length === 0) {
+    // An empty manual collection stays empty; it must not silently become the full catalog.
+    items = [];
   } else items = listProducts({ perPage: rule.limit ?? 12 }).items;
   return { ...col, items };
 }

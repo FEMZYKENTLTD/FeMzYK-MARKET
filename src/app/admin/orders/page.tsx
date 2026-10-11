@@ -6,9 +6,9 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default function AdminOrdersPage({ searchParams }: { searchParams: { status?: string; q?: string } }) {
-  const status = searchParams.status || "";
-  const term = searchParams.q || "";
+export default async function AdminOrdersPage({ searchParams }: { searchParams: Promise<{ status?: string; q?: string }> }) {
+  const status = (await searchParams).status || "";
+  const term = (await searchParams).q || "";
   const where = `WHERE 1=1 ${status ? "AND o.status = ?" : ""} ${term ? "AND (o.order_number LIKE ? OR o.email LIKE ?)" : ""}`;
   const params: any[] = [];
   if (status) params.push(status);

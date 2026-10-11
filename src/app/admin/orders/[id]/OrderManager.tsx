@@ -87,7 +87,7 @@ export default function OrderManager({
             <button className="btn-dark btn-sm" disabled={busy} onClick={() => saveShipment("DELIVERED")}>Delivered</button>
           </div>
           {shipments.length > 0 && <p className="text-[11px] text-mist-500">Current: {shipments[0].status} {shipments[0].tracking ? `· ${shipments[0].tracking}` : ""}</p>}
-          <p className="text-[11px] text-mist-500">Customers see tracking on the Track Order page and receive a shipping email when marked shipped.</p>
+          <p className="text-[11px] text-mist-500">Customers can see tracking on the Track Order page. Shipping email events are queued but are not delivered until an email provider is connected.</p>
         </div>
       </div>
     </div>

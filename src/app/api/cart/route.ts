@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       packageId: z.number().int().positive().nullable().optional(),
     });
     const data = schema.parse(body);
-    addToCart(data.productId, data.variantId ?? null, data.qty ?? 1, data.packageId ?? null);
+    await addToCart(data.productId, data.variantId ?? null, data.qty ?? 1, data.packageId ?? null);
     track("add_to_cart", { productId: data.productId, qty: data.qty ?? 1 });
     return NextResponse.json({ ok: true });
   } catch (e: any) {
@@ -37,7 +37,7 @@ export async function PATCH(req: NextRequest) {
       savedForLater: z.boolean().optional(),
     });
     const data = schema.parse(body);
-    const token = getCartToken();
+    const token = await getCartToken();
     if (!token) throw new ApiError(400, "Cart not found.");
     if (data.qty === 0) {
       run("DELETE FROM cart_items WHERE id = ? AND cart_id = (SELECT id FROM carts WHERE token = ?)", data.lineId, token);
@@ -59,7 +59,7 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     const code = String(body.code || "").trim();
-    const token = getCartToken();
+    const token = await getCartToken();
     const cart = token ? q1<{ id: number }>("SELECT id FROM carts WHERE token = ?", token) : null;
     if (!cart) throw new ApiError(400, "Your cart is empty — add something first.");
     if (!code) {
@@ -76,6 +76,6 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function GET() {
-  const state = activeCouponState();
+  const state = await activeCouponState();
   return NextResponse.json(state ?? { coupon: null });
 }

@@ -13,7 +13,7 @@ export default function AdminShippingPage() {
     <div>
       <h1 className="font-display text-2xl text-cream-50 mb-2">Shipping zones & methods</h1>
       <p className="text-sm text-mist-400 mb-6">
-        Rates are honest estimates shown at checkout. Use <code className="text-mist-300">*</code> in a zone's country list to catch all remaining countries.
+        Seeded example rates are disabled. Confirm each rate, destination and delivery range with your real carrier before enabling it; checkout blocks physical orders when no active method exists.
       </p>
       <ShippingManager zones={zones} />
     </div>

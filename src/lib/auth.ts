@@ -28,8 +28,8 @@ export function destroySession(token: string): void {
   run("DELETE FROM sessions WHERE token = ?", token);
 }
 
-export function getSessionUser(): SessionUser | null {
-  const token = cookies().get(SESSION_COOKIE)?.value;
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
   const row = q1<{
     token: string; user_id: number; expires_at: string;
@@ -54,20 +54,20 @@ export function getSessionUser(): SessionUser | null {
   };
 }
 
-export function requireUser(): SessionUser {
-  const u = getSessionUser();
+export async function requireUser(): Promise<SessionUser> {
+  const u = await getSessionUser();
   if (!u) throw new ApiError(401, "Please sign in to continue.");
   return u;
 }
 
-export function requireAdmin(): SessionUser {
-  const u = requireUser();
+export async function requireAdmin(): Promise<SessionUser> {
+  const u = await requireUser();
   if (u.role !== "ADMIN") throw new ApiError(403, "You are not authorized to perform this action.");
   return u;
 }
 
-export function setSessionCookie(token: string) {
-  cookies().set(SESSION_COOKIE, token, {
+export async function setSessionCookie(token: string) {
+  (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
@@ -76,8 +76,8 @@ export function setSessionCookie(token: string) {
   });
 }
 
-export function clearSessionCookie() {
-  cookies().set(SESSION_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
+export async function clearSessionCookie() {
+  (await cookies()).set(SESSION_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
 }
 
 export async function registerUser(input: {

@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export const metadata: Metadata = { title: "Payment not completed" };
 
-export default function CancelledPage({ searchParams }: { searchParams: { order?: string } }) {
+export default async function CancelledPage({ searchParams }: { searchParams: Promise<{ order?: string }> }) {
   return (
     <div className="container-page py-20 text-center max-w-xl mx-auto">
       <p className="text-4xl mb-4" aria-hidden>🕊️</p>

@@ -1,24 +1,20 @@
 import Link from "next/link";
-import NewsletterForm from "./NewsletterForm";
 import { siteConfig } from "@/lib/settings";
+import { listCategories } from "@/lib/repo/catalog";
 
 export default function Footer() {
   const site = siteConfig();
+  const shopLinks: [string, string][] = [
+    ["/shop/all", "All Products"],
+    ...listCategories()
+      .filter((category) => !["digital", "web-dev-services"].includes(category.slug))
+      .slice(0, 4)
+      .map((category) => [`/shop/${category.slug}`, category.name] as [string, string]),
+    ["/digital", "Digital Products"],
+    ["/collections", "Collections"],
+  ];
   return (
     <footer className="border-t border-ink-700 bg-ink-900 mt-20">
-      {/* Newsletter */}
-      <div className="border-b border-ink-700">
-        <div className="container-page py-10 grid gap-6 md:grid-cols-2 items-center">
-          <div>
-            <h2 className="font-display text-xl text-cream-50">Stay in the loop — without the noise</h2>
-            <p className="text-sm text-mist-400 mt-1.5 max-w-md">
-              Occasional emails about new products, digital releases and useful FEMZYK content. Easy to unsubscribe — we mean it.
-            </p>
-          </div>
-          <NewsletterForm />
-        </div>
-      </div>
-
       <div className="container-page py-12 grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
         <div className="lg:col-span-2 max-w-xs">
           <div className="flex items-baseline gap-2">
@@ -26,30 +22,17 @@ export default function Footer() {
             <span className="text-[10px] font-semibold tracking-[0.28em] text-gold-400 uppercase">Market</span>
           </div>
           <p className="text-sm text-mist-400 mt-3 leading-relaxed">{site.tagline}</p>
-          <p className="text-xs text-mist-500 mt-4">
-            The ecommerce and digital-commerce division of {site.businessName}.
-          </p>
+          {site.businessName && site.businessName !== site.storeName && <p className="text-xs text-mist-500 mt-4">{site.businessName}</p>}
         </div>
 
         <FooterCol
           title="Shop"
-          links={[
-            ["/shop/all", "All Products"],
-            ["/shop/home", "Home"],
-            ["/shop/pets", "Pets"],
-            ["/shop/kitchen", "Kitchen"],
-            ["/shop/desk-work", "Desk & Work"],
-            ["/digital", "Digital Products"],
-            ["/collections", "Collections"],
-          ]}
+          links={shopLinks}
         />
         <FooterCol
           title="Services"
           links={[
             ["/services", "Web Development"],
-            ["/services/business-website-development", "Business Websites"],
-            ["/services/landing-page-development", "Landing Pages"],
-            ["/services/website-maintenance-care", "Maintenance & Care"],
             ["/business", "For Businesses"],
           ]}
         />
@@ -80,7 +63,6 @@ export default function Footer() {
             <span className="hidden sm:inline">
               © {new Date().getFullYear()} {site.businessName}. All rights reserved.
             </span>
-            <span className="badge-gray">Secure checkout</span>
           </div>
         </div>
       </div>

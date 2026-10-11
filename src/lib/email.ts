@@ -1,5 +1,4 @@
 import { insert } from "./db";
-import { siteConfig } from "./settings";
 
 /**
  * Transactional email layer.
@@ -48,9 +47,13 @@ const TEMPLATES: Record<string, (d: TemplateData) => { subject: string; body: st
     subject: `Project ${d.reference}: ${d.status}`,
     body: `Hi ${d.name || "there"},\n\nYour project ${d.reference} status is now: ${d.status}.\n\nYou can view details and messages in your Services dashboard.\n\n— The FEMZYK Team`,
   }),
+  support_received: (d) => ({
+    subject: `Support request received (${d.reference})`,
+    body: `Hi ${d.name || "there"},\n\nYour support request ${d.reference} has been saved. Keep this reference and use the Help Center at ${d.helpUrl || "/help"} with the same email address to view or reply to your request.\n\nThis message is queued in the FEMZYK outbox; it is not an email receipt unless a delivery provider has been configured and verified.\n\n— The FEMZYK Team`,
+  }),
   support_reply: (d) => ({
     subject: `Re: ${d.subject} (${d.reference})`,
-    body: `Hi ${d.name || "there"},\n\nOur support team has replied to your request ${d.reference}. Check the Help Center or reply to this email to continue the conversation.\n\n— The FEMZYK Team`,
+    body: `Hi ${d.name || "there"},\n\nThe FEMZYK team replied to your request ${d.reference}:\n\n${d.reply || "Please check the Help Center to view the reply."}\n\nOpen ${d.helpUrl || "/help"} with the same reference and email address to continue the conversation.\n\n— The FEMZYK Team`,
   }),
   password_reset: (d) => ({
     subject: "Reset your FEMZYK MARKET password",
@@ -60,24 +63,18 @@ const TEMPLATES: Record<string, (d: TemplateData) => { subject: string; body: st
 
 export function sendEmail(to: string, template: string, data: TemplateData = {}): void {
   const t = TEMPLATES[template];
-  const site = siteConfig();
   const { subject, body } = t
     ? t(data)
     : { subject: (data.subject as string) || "FEMZYK MARKET", body: (data.body as string) || "" };
+  // Outbox queueing is not delivery. No live transport is currently wired in.
   insert(
-    "INSERT INTO email_outbox (to_email, template, subject, body_md, status, provider) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO email_outbox (to_email, template, subject, body_md, status, provider) VALUES (?, ?, ?, ?, 'queued', 'manual-outbox')",
     to,
     template,
     subject,
-    body,
-    process.env.EMAIL_API_KEY ? "queued" : "queued",
-    process.env.EMAIL_API_KEY ? "configured-provider" : "local-outbox"
+    body
   );
-  // A production deployment plugs the transactional provider in here
-  // (e.g. Resend/Postmark/SES) using EMAIL_API_KEY. Keys are never exposed
-  // to the client.
   if (process.env.NODE_ENV !== "production") {
-    console.log(`[email:${template}] to=${to} subject="${subject}"`);
+    console.log(`[email:queued-not-sent:${template}] to=${to} subject="${subject}"`);
   }
-  void site;
 }

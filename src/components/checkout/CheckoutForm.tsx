@@ -67,7 +67,7 @@ export default function CheckoutForm({
 
   const loadTotals = useCallback(async () => {
     try {
-      const url = `/api/cart/totals?country=${encodeURIComponent(country || "US")}`;
+      const url = country ? `/api/cart/totals?country=${encodeURIComponent(country)}` : "/api/cart/totals";
       const res = await fetch(url);
       if (res.ok) setTotals(await res.json());
     } catch {
@@ -86,6 +86,14 @@ export default function CheckoutForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (!country) {
+      setError("Choose your country so any applicable tax can be calculated before payment.");
+      return;
+    }
+    if (needsShipping && (!totals || !totals.shippingQuote)) {
+      setError("Shipping is not configured for this destination yet. Your cart is saved; please contact support or choose another destination.");
+      return;
+    }
     setBusy(true);
     try {
       const payload: any = {
@@ -93,7 +101,7 @@ export default function CheckoutForm({
         firstName: form.firstName,
         lastName: form.lastName,
         currency,
-        country: needsShipping ? country : country || undefined,
+        country,
         customerNote: form.note || undefined,
       };
       if (needsShipping) {
@@ -201,6 +209,18 @@ export default function CheckoutForm({
           </section>
         )}
 
+        {!needsShipping && (
+          <section className="card p-6">
+            <h2 className="font-display text-lg text-cream-50 mb-2">2 · Country</h2>
+            <p className="text-xs text-mist-500 mb-4">No shipping address is needed for digital products or services. Choose your country so any applicable tax can be shown before payment.</p>
+            <label className="label" htmlFor="co-billing-country">Country *</label>
+            <select id="co-billing-country" className="input" value={country} onChange={(e) => setCountry(e.target.value)} required>
+              <option value="">Choose a country…</option>
+              {COUNTRIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+            </select>
+          </section>
+        )}
+
         {/* Service note */}
         {hasService && (
           <section className="card p-6 border-navy-700/60">
@@ -236,14 +256,17 @@ export default function CheckoutForm({
             )}
             <div className="flex justify-between">
               <dt className="text-mist-400">Shipping</dt>
-              <dd className="text-cream-100">{totals.needsShipping ? (totals.shipping === 0 ? "Free" : formatMoney(totals.shipping, currency)) : "—"}</dd>
+              <dd className="text-cream-100">{totals.needsShipping ? (totals.shippingQuote ? (totals.shipping === 0 ? "Free" : formatMoney(totals.shipping, currency)) : "Unavailable") : "—"}</dd>
             </div>
-            {totals.tax > 0 && (
-              <div className="flex justify-between">
-                <dt className="text-mist-400">Taxes</dt>
-                <dd className="text-cream-100">{formatMoney(totals.tax, currency)}</dd>
-              </div>
+            {totals.needsShipping && !totals.shippingQuote && (
+              <p className="text-xs text-amber-200 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2" role="status">
+                Shipping is not configured for this destination yet. No order will be placed and your cart is saved.
+              </p>
             )}
+            <div className="flex justify-between">
+              <dt className="text-mist-400">Taxes</dt>
+              <dd className="text-cream-100">{formatMoney(totals.tax, currency)}</dd>
+            </div>
             <div className="flex justify-between border-t border-ink-700 pt-3 mt-3">
               <dt className="font-semibold text-cream-50">Total due today</dt>
               <dd className="font-semibold text-gold-300 text-lg">{formatMoney(totals.total, currency)}</dd>
@@ -260,14 +283,14 @@ export default function CheckoutForm({
           </p>
         )}
 
-        <button type="submit" className="btn-gold btn-lg w-full mt-5" disabled={busy || !totals}>
+        <button type="submit" className="btn-gold btn-lg w-full mt-5" disabled={busy || !totals || (needsShipping && !totals.shippingQuote)}>
           {busy ? "Connecting to payment…" : `Pay ${totals ? formatMoney(totals.total, currency) : ""} securely`}
         </button>
         <p className="text-[11px] text-mist-500 mt-3 text-center">Payment handled by {providerLabel}. You'll be redirected to complete it securely.</p>
 
         <div className="mt-5 pt-4 border-t border-ink-700 space-y-2 text-[11px] text-mist-500 leading-relaxed">
           <p>✓ The full amount is shown above before you pay — no surprises at the final step.</p>
-          <p>✓ 30-day returns on physical products. <a href="/returns" className="text-gold-400 hover:text-gold-300">Details</a></p>
+          <p>✓ Review the published return conditions for each product. <a href="/returns" className="text-gold-400 hover:text-gold-300">Details</a></p>
           <p>✓ Problems with payment? Nothing is charged until verification succeeds. <a href="/help" className="text-gold-400 hover:text-gold-300">Support</a></p>
         </div>
       </aside>

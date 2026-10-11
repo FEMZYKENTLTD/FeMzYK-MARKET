@@ -1,17 +1,17 @@
 import { Metadata } from "next";
-import { cookies } from "next/headers";
 import { listProducts } from "@/lib/repo/catalog";
 import { track } from "@/lib/analytics";
 import ProductCard from "@/components/product/ProductCard";
 import Link from "next/link";
+import { getDisplayCurrency } from "@/lib/moneyServer";
 
 export const metadata: Metadata = { title: "Search" };
 
-export default function SearchPage({ searchParams }: { searchParams: { q?: string; type?: string } }) {
-  const q = (searchParams.q || "").trim();
-  const currency = cookies().get("fm_currency")?.value || "USD";
+export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; type?: string }> }) {
+  const q = ((await searchParams).q || "").trim();
+  const currency = await getDisplayCurrency();
   if (q) track("search", { q });
-  const result = q ? listProducts({ q, type: searchParams.type || undefined, perPage: 48, sort: "featured" }) : null;
+  const result = q ? listProducts({ q, type: (await searchParams).type || undefined, perPage: 48, sort: "featured" }) : null;
   const popular = ["candle", "desk", "python", "website", "organization", "gift", "template"];
 
   return (
@@ -20,7 +20,7 @@ export default function SearchPage({ searchParams }: { searchParams: { q?: strin
       <form method="GET" action="/search" className="mt-5 flex gap-2 max-w-xl" role="search">
         <label htmlFor="search-q" className="sr-only">Search the store</label>
         <input id="search-q" name="q" defaultValue={q} required className="input" placeholder="Search products, guides, services…" />
-        {searchParams.type && <input type="hidden" name="type" value={searchParams.type} />}
+        {(await searchParams).type && <input type="hidden" name="type" value={(await searchParams).type} />}
         <button className="btn-gold btn-md shrink-0">Search</button>
       </form>
 

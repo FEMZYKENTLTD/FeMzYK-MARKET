@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function ReviewsPage() {
   const reviews = q<any>(
     `SELECT r.rating, r.title, r.body, r.author_name, r.is_verified, r.is_seed, r.created_at, p.name AS product_name, p.slug AS product_slug, p.type_code
-     FROM reviews r JOIN products p ON p.id = r.product_id WHERE r.status = 'approved' ORDER BY r.created_at DESC LIMIT 30`
+     FROM reviews r JOIN products p ON p.id = r.product_id WHERE r.status = 'approved' AND r.is_verified = 1 AND r.is_seed = 0 ORDER BY r.created_at DESC LIMIT 30`
   );
 
   return (
@@ -20,8 +20,7 @@ export default function ReviewsPage() {
         <p className="eyebrow">Real feedback only</p>
         <h1 className="font-display text-3xl text-cream-50 mt-2">Customer reviews</h1>
         <p className="text-sm text-mist-400 mt-3 max-w-xl mx-auto leading-relaxed">
-          Every review here is either a verified purchase or clearly labelled as one of our initial launch reviews.
-          Reviews are moderated but never edited. We don't publish fake ratings — if a product has no reviews yet, we say so.
+          Only reviews from confirmed, paid customer orders appear here. Reviews are moderated for safety but never edited. If a product has no reviews yet, we say so.
         </p>
       </div>
       <div className="grid sm:grid-cols-2 gap-4">
@@ -29,14 +28,14 @@ export default function ReviewsPage() {
           <figure key={i} className="card p-6">
             <div className="flex items-center gap-2 flex-wrap">
               <Stars rating={r.rating} size="sm" />
-              {r.is_seed ? <span className="badge-gray">Initial review</span> : r.is_verified ? <span className="badge-green">✓ Verified purchase</span> : null}
+              {r.is_verified && <span className="badge-green">✓ Verified purchase</span>}
             </div>
             {r.title && <h2 className="text-sm font-semibold text-cream-100 mt-3">{r.title}</h2>}
             <blockquote className="text-sm text-mist-300 mt-2 leading-relaxed">&ldquo;{r.body}&rdquo;</blockquote>
             <figcaption className="text-xs text-mist-500 mt-4">
               <span className="text-cream-200 font-medium">{r.author_name}</span>
               {" · on "}
-              <Link href={r.type_code === "SERVICE" ? `/services/${r.product_slug}` : `/products/${r.product_slug}`} className="text-gold-400 hover:text-gold-300">
+              <Link href={r.type_code === "SERVICE" || r.type_code === "SERVICE_PACKAGE" ? `/services/${r.product_slug}` : `/products/${r.product_slug}`} className="text-gold-400 hover:text-gold-300">
                 {r.product_name}
               </Link>
             </figcaption>

@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import { getCategory } from "@/lib/repo/catalog";
 import ShopBrowser from "@/components/shop/ShopBrowser";
 
-export function generateMetadata({ params }: { params: { category: string } }) {
-  const cat = getCategory(params.category);
+export async function generateMetadata({ params }: { params: Promise<{ category: string }> }) {
+  const cat = getCategory((await params).category);
   if (!cat) return { title: "Shop" };
   return {
     title: cat.seo_title || `${cat.name}`,
@@ -15,14 +15,15 @@ export default async function CategoryPage({
   params,
   searchParams,
 }: {
-  params: { category: string };
-  searchParams: Record<string, string | undefined>;
+  params: Promise<{ category: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const cat = getCategory(params.category);
+  const cat = getCategory((await params).category);
+  const filters = await searchParams;
   if (!cat) notFound();
   return (
     <ShopBrowser
-      searchParams={searchParams}
+      searchParams={filters}
       category={cat.slug}
       title={cat.name}
       eyebrow={cat.parent_name ? `${cat.parent_name}` : "Shop by category"}

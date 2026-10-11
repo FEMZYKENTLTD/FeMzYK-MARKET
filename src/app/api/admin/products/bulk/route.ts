@@ -6,7 +6,7 @@ import { run } from "@/lib/db";
 /** Bulk product operations: publish / unpublish / archive / price adjust / category change / tags. */
 export async function POST(req: NextRequest) {
   try {
-    const admin = adminUser();
+    const admin = await adminUser();
     const data = z
       .object({
         ids: z.array(z.number().int()).min(1).max(500),

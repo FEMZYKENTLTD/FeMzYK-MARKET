@@ -17,6 +17,7 @@ export interface CardProduct {
   image: string | null;
   image_alt: string | null;
   is_bestseller?: number;
+  sales_count?: number;
   is_new?: number;
   stock_qty?: number;
   track_inventory?: number;
@@ -29,6 +30,7 @@ export default function ProductCard({ p, currency }: { p: CardProduct; currency:
   const isDigital = p.type_code === "DIGITAL_PRODUCT" || p.type_code === "DOWNLOADABLE_RESOURCE";
   const href = isService ? `/services/${p.slug}` : `/products/${p.slug}`;
   const outOfStock = !!p.track_inventory && (p.stock_qty ?? 0) <= 0;
+  const isBestseller = !!p.is_bestseller && (p.sales_count ?? 0) > 0;
 
   return (
     <article className="card card-hover group relative flex flex-col overflow-hidden">
@@ -51,8 +53,8 @@ export default function ProductCard({ p, currency }: { p: CardProduct; currency:
         <div className="absolute top-2.5 left-2.5 flex flex-col items-start gap-1.5">
           {isService && <span className="badge-navy">Service</span>}
           {isDigital && <span className="badge-gold">Digital · Instant</span>}
-          {!!p.is_bestseller && <span className="badge-gold">Bestseller</span>}
-          {!!p.is_new && !p.is_bestseller && <span className="badge-gray">New</span>}
+          {isBestseller && <span className="badge-gold">Bestseller</span>}
+          {!!p.is_new && !isBestseller && <span className="badge-gray">New</span>}
           {outOfStock && <span className="badge-red">Out of stock</span>}
         </div>
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">

@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
     const data = schema.parse(body);
     const user = authenticate(data.email, data.password);
     const token = createSession(user.id);
-    setSessionCookie(token);
+    await setSessionCookie(token);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     if (e instanceof ApiError) return NextResponse.json({ error: e.message }, { status: e.status });

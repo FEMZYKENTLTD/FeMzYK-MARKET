@@ -6,10 +6,10 @@ export const metadata: Metadata = {
   description: "Browse the full FEMZYK MARKET catalog — home, pets, kitchen, desk, lifestyle, gifts, digital products and more.",
 };
 
-export default function ShopAllPage({ searchParams }: { searchParams: Record<string, string | undefined> }) {
+export default async function ShopAllPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   return (
     <ShopBrowser
-      searchParams={searchParams}
+      searchParams={await searchParams}
       title="All Products"
       eyebrow="The full catalog"
       description="Physical products, digital resources and services — filter by type, category or price."

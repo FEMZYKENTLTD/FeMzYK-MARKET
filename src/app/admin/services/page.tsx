@@ -15,7 +15,7 @@ export default function AdminProjectsPage() {
   return (
     <div>
       <h1 className="font-display text-2xl text-cream-50 mb-2">Service projects</h1>
-      <p className="text-sm text-mist-400 mb-6">Every web development project with status, requirements and messages. Status changes notify the customer by email.</p>
+      <p className="text-sm text-mist-400 mb-6">Every web development project with status, requirements and messages. Status notifications are queued in the outbox; they are not emailed until a delivery provider is connected.</p>
       {projects.length === 0 ? (
         <p className="text-sm text-mist-500 card p-6">No projects yet — they appear when customers purchase a service.</p>
       ) : (

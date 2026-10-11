@@ -11,6 +11,113 @@ import path from "node:path";
 
 let _db: DatabaseSync | null = null;
 
+const PRODUCTION_SAMPLE_DATA_MIGRATION = "2026-10-production-sample-data-safety";
+const SAMPLE_PRODUCT_SLUGS = [
+  "femzyk-lumora-candle-warmer",
+  "femzyk-nova-dog-grooming-kit",
+  "femzyk-rover-travel-organizer",
+  "femzyk-neatspace-organization-set",
+  "femzyk-slow-morning-ceramic-set",
+  "femzyk-creator-desk-kit",
+  "femzyk-pressmate-manual-juicer",
+  "femzyk-createbox-diy-craft-kit",
+  "femzyk-modern-cat-home",
+  "femzyk-business-creator-template-bundle",
+  "complete-beginners-guide-to-building-websites",
+  "python-programming-for-complete-beginners",
+  "business-website-development",
+  "landing-page-development",
+  "website-maintenance-care",
+];
+const SAMPLE_CATEGORY_SLUGS = [
+  "home", "home-fragrance", "organization", "decor", "cleaning", "everyday-home",
+  "pets", "dogs", "cats", "grooming", "pet-travel", "feeding", "pet-accessories",
+  "kitchen", "kitchen-tools", "drinkware", "food-preparation", "storage",
+  "desk-work", "desk-organization", "workspace", "productivity", "desk-accessories",
+  "lifestyle", "everyday-essentials", "personal-lifestyle", "travel",
+  "gifts", "gifts-for-her", "gifts-for-him", "home-gifts", "pet-gifts", "digital-gifts",
+  "digital", "guides", "templates", "business-resources", "programming", "web-development",
+  "design-resources", "educational-resources", "web-dev-services", "websites", "landing-pages",
+  "business-websites", "web-applications", "backend-development", "api-integration", "maintenance",
+  "custom-development",
+];
+
+function migrateProductionSampleData(db: DatabaseSync): void {
+  if (process.env.NODE_ENV !== "production") return;
+
+  db.exec("CREATE TABLE IF NOT EXISTS app_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))");
+  if (db.prepare("SELECT id FROM app_migrations WHERE id = ?").get(PRODUCTION_SAMPLE_DATA_MIGRATION)) return;
+
+  const placeholders = (values: string[]) => values.map(() => "?").join(",");
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    db.prepare(
+      `UPDATE products SET status = 'draft', is_featured = 0, is_bestseller = 0, is_new = 0,
+         compare_at_cents = NULL, sales_count = 0
+       WHERE slug IN (${placeholders(SAMPLE_PRODUCT_SLUGS)})`
+    ).run(...SAMPLE_PRODUCT_SLUGS);
+    db.prepare(
+      `UPDATE reviews SET is_seed = 1
+       WHERE product_id IN (SELECT id FROM products WHERE slug IN (${placeholders(SAMPLE_PRODUCT_SLUGS)}))`
+    ).run(...SAMPLE_PRODUCT_SLUGS);
+    db.prepare(
+      `UPDATE categories SET is_active = 0,
+         image = CASE WHEN image LIKE '/images/%' THEN NULL ELSE image END
+       WHERE slug IN (${placeholders(SAMPLE_CATEGORY_SLUGS)})`
+    ).run(...SAMPLE_CATEGORY_SLUGS);
+    db.prepare("UPDATE shipping_methods SET is_active = 0 WHERE LOWER(name) LIKE '%verify before enabling%'").run();
+
+    const rateRow = db.prepare("SELECT value_json FROM site_settings WHERE key = 'currency_rates'").get() as { value_json?: string } | undefined;
+    if (rateRow?.value_json) {
+      try {
+        const rates = JSON.parse(rateRow.value_json);
+        if (rates?.USD === 1 && rates?.CAD === 1.36 && rates?.GBP === 0.79 && rates?.NGN === 1550 && Object.keys(rates).length === 4) {
+          db.prepare("UPDATE site_settings SET value_json = ? WHERE key = 'currency_rates'").run(JSON.stringify({ USD: 1 }));
+        }
+      } catch { /* leave a malformed setting for the admin to review */ }
+    }
+
+    const heroRow = db.prepare("SELECT value_json FROM site_settings WHERE key = 'home_hero'").get() as { value_json?: string } | undefined;
+    if (heroRow?.value_json) {
+      try {
+        const hero = JSON.parse(heroRow.value_json);
+        if (hero?.title === "Smart products. Digital solutions. Better everyday living." &&
+            hero?.subtitle === "Discover thoughtfully selected products, useful digital resources and practical web solutions designed to make work and everyday life better.") {
+          db.prepare("UPDATE site_settings SET value_json = ? WHERE key = 'home_hero'").run(JSON.stringify({
+            title: "FEMZYK MARKET",
+            subtitle: "Store and business information is being prepared. Please check back soon.",
+          }));
+        }
+      } catch { /* leave a malformed setting for the admin to review */ }
+    }
+
+    const siteRow = db.prepare("SELECT value_json FROM site_settings WHERE key = 'site'").get() as { value_json?: string } | undefined;
+    if (siteRow?.value_json) {
+      try {
+        const site = JSON.parse(siteRow.value_json);
+        if (site?.businessName === "FEMZYK ENTERPRISES") {
+          site.businessName = "FEMZYK MARKET";
+          db.prepare("UPDATE site_settings SET value_json = ? WHERE key = 'site'").run(JSON.stringify(site));
+        }
+      } catch { /* leave a malformed setting for the admin to review */ }
+    }
+
+    // Older starter FAQ rows may include unverified payment, delivery, refund, or service claims.
+    db.prepare(`UPDATE faq_items SET is_active = 0 WHERE question IN (
+      'Which payment methods do you accept?', 'Is checkout secure?', 'Can I check out without an account?',
+      'Where do you ship?', 'How fast is delivery?', 'Can I track my order?', 'What is your return policy?',
+      'How do I receive digital products?', 'What if a digital product is updated?',
+      'How do web development services work?', 'What if I need something custom?'
+    )`).run();
+
+    db.prepare("INSERT INTO app_migrations (id) VALUES (?)").run(PRODUCTION_SAMPLE_DATA_MIGRATION);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 function schemaSql(): string {
   return fs.readFileSync(path.join(process.cwd(), "src/lib/schema.sql"), "utf8");
 }
@@ -28,16 +135,42 @@ export function getDb(): DatabaseSync {
   } catch {
     /* column already exists */
   }
-  _db = db;
-  // Lazy-seed on first boot so the store never runs empty.
   try {
+    db.exec("ALTER TABLE support_tickets ADD COLUMN assigned_to TEXT");
+  } catch {
+    /* column already exists */
+  }
+  try {
+    db.exec("ALTER TABLE orders ADD COLUMN cart_id INTEGER REFERENCES carts(id) ON DELETE SET NULL");
+  } catch {
+    /* column already exists */
+  }
+  try {
+    db.exec("ALTER TABLE orders ADD COLUMN cart_restored INTEGER NOT NULL DEFAULT 0");
+  } catch {
+    /* column already exists */
+  }
+  try {
+    db.exec("ALTER TABLE orders ADD COLUMN confirmation_token TEXT");
+  } catch {
+    /* column already exists */
+  }
+  try {
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_user_product ON reviews(user_id, product_id) WHERE user_id IS NOT NULL");
+  } catch {
+    /* legacy duplicates may need manual cleanup before adding this constraint */
+  }
+  migrateProductionSampleData(db);
+  _db = db;
+  // Lazy-seed on first boot so the store never runs empty. Admin provisioning
+  // also runs for an existing database that has no admin account.
+  try {
+    const seed = require("./seed");
     const row = db.prepare("SELECT COUNT(*) AS c FROM products").get() as { c: number };
-    if (row.c === 0) {
-      // Seed module registers itself synchronously.
-      require("./seed").runSeed(db);
-    }
+    if (row.c === 0) seed.runSeed(db);
+    seed.ensureInitialAdmin(db);
   } catch (e) {
-    console.error("[db] seed error:", e);
+    console.error("[db] initialization error:", e);
   }
   return db;
 }
@@ -89,9 +222,8 @@ export function insert(sql: string, ...params: any[]): number {
 
 /** Generate a public id, e.g. order numbers. */
 export function refNumber(prefix: string): string {
-  const t = Date.now().toString(36).toUpperCase();
-  const r = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `${prefix}-${t}${r}`;
+  const c = require("node:crypto") as typeof import("node:crypto");
+  return `${prefix}-${c.randomBytes(12).toString("hex").toUpperCase()}`;
 }
 
 export function randomToken(bytes = 24): string {

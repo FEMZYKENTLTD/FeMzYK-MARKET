@@ -1,9 +1,10 @@
 import { getSessionUser } from "@/lib/auth";
 import { q } from "@/lib/db";
 import ProfileForm from "./ProfileForm";
+import PasswordChangeForm from "./PasswordChangeForm";
 
-export default function ProfilePage() {
-  const user = getSessionUser()!;
+export default async function ProfilePage() {
+  const user = (await getSessionUser())!;
   const row = q<any>("SELECT first_name, last_name, email, marketing_opt_in, created_at, role FROM users WHERE id = ?", user.id)[0];
   const addresses = q<any>("SELECT * FROM addresses WHERE user_id = ?", user.id);
 
@@ -24,8 +25,9 @@ export default function ProfilePage() {
               <li>✓ Payment details are never stored by FEMZYK</li>
             </ul>
             <p className="text-xs text-mist-500 mt-4">
-              To change your password, use <span className="text-mist-300">Forgot password</span> on the sign-in page — a secure reset link will be emailed to you.
+              Use a unique password and update it before launch if this account was created for setup. Password reset messages are queued but not delivered until an email provider is connected.
             </p>
+            <PasswordChangeForm />
           </div>
           <div className="card p-6">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-mist-400 mb-3">Saved addresses</h2>

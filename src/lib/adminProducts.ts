@@ -78,7 +78,7 @@ export function createProduct(data: z.infer<typeof productSchema>, _actorId: num
       service_quote_type, service_delivery_min_days, service_delivery_max_days, service_revisions, service_included_json,
       service_excluded_json, service_process_json, service_requirements_json, seo_title, seo_description, seo_keywords, supplier_id, supplier_sku)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    data.type_code, data.sku, slug, data.name, data.brand || "FEMZYK", data.short_description ?? null, data.description ?? null,
+    data.type_code, data.sku, slug, data.name, data.brand?.trim() || null, data.short_description ?? null, data.description ?? null,
     data.price_cents, data.compare_at_cents ?? null, data.cost_cents ?? null,
     type.has_inventory && data.track_inventory ? 1 : 0, data.stock_qty, data.low_stock_threshold, data.allow_backorder ? 1 : 0,
     type.requires_shipping && data.requires_shipping ? 1 : 0, data.weight_grams ?? null, data.status, data.publish_at ?? null,

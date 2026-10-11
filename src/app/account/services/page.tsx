@@ -5,8 +5,8 @@ import { PROJECT_STATUS_LABELS } from "@/lib/statemachine";
 import EmptyState from "@/components/ui/EmptyState";
 import { timeAgo } from "@/lib/util";
 
-export default function ServicesDashboard() {
-  const user = getSessionUser()!;
+export default async function ServicesDashboard() {
+  const user = (await getSessionUser())!;
   const projects = q<any>(
     `SELECT pr.*, p.name AS service_name FROM projects pr LEFT JOIN products p ON p.id = pr.product_id
      WHERE pr.user_id = ? ORDER BY pr.created_at DESC`,
